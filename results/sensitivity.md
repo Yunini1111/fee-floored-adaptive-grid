@@ -56,6 +56,49 @@ The inventory cap is the dial. Note that `dd_kill` is *derived* from it (`clamp(
 
 The last row is the important one. Adding a force-selling mechanism on top of a lower cap is **worse on both axes** than simply lowering the cap: it gives up return *and* ends up with a larger full-run drawdown. If you want less risk, hold less inventory -- do not bolt on a mechanism that liquidates into weakness.
 
+## 2b. `base_fraction` -- the directional dial, and why there is no free lunch
+
+A long-biased grid only buys below its anchor and sells above it, so it does not participate in a trend. The standard fix is a **base position**: hold a fixed fraction of equity in the asset permanently and run the grid on the rest. We built it, measured it, and it does not do what it is usually claimed to do.
+
+| `base_fraction` | Full-run return | Full-run max DD | Sharpe | Calmar | Round trips |
+|---:|---:|---:|---:|---:|---:|
+| 0% **(default)** | +56.13% | 41.86% | 0.37 | 0.14 | 408 |
+| 25% | +441.78% | 69.65% | 0.72 | 0.36 | 409 |
+| 50% | +827.49% | 74.29% | 0.82 | 0.46 | 406 |
+| 75% | +1213.31% | 76.19% | 0.87 | 0.53 | 402 |
+| 100% *(= pure buy & hold)* | +1598.88% | 77.24% | 0.91 | 0.59 | 0 |
+
+**Read that table carefully, because it is the least flattering thing in this repository.** Over 2019-2026 the response is monotone in *every* column -- return, Sharpe and Calmar all improve as the base fraction rises, and they are maximised at 100%, which is not a strategy at all. On this window, every unit of capital allocated to the grid rather than to simply holding BTC subtracted risk-adjusted value.
+
+But that verdict is a property of the window, not of the grid. Per regime:
+
+| Window | 0% | 25% | 50% | 75% | 100% | Best |
+|---|---:|---:|---:|---:|---:|---|
+| `bear-2022` | -33.36% | -41.08% | -48.82% | -56.53% | -64.25% | **0%** |
+| `range-2023` | +12.32% | +48.08% | +84.00% | +119.68% | +155.36% | **100%** |
+| `bull-2020Q4` | +10.82% | +119.22% | +227.66% | +336.06% | +444.53% | **100%** |
+| `flat-2024-26` | -5.81% | -5.04% | -4.25% | -3.51% | -2.71% | **100%** |
+| `year-2025` | -0.55% | -1.98% | -3.51% | -4.98% | -6.44% | **0%** |
+| `chop-2019H2` | +11.55% | +3.28% | -4.99% | -13.24% | -21.55% | **0%** |
+
+Every row is monotone in one direction or the other, and which direction is decided entirely by whether the asset rose or fell. **`base_fraction` is not a tuning parameter; it is a directional view.** Setting it high is a bet that the market goes up, in which case you should ask why you are running a grid at all. Setting it to zero is a bet that it chops or falls. The blend is exactly linear -- there is no interaction term, no synergy, and no free lunch hiding in the middle.
+
+We ship `base_fraction = 0`. Not because zero wins on this window -- it loses badly -- but because the pure grid is the honest expression of what this Skill is, and blending it toward buy-and-hold to improve a headline number would be selling beta as alpha.
+
+## 2c. `uptrend_exit_mult` -- tested and rejected
+
+The one genuinely different way to make the grid more trend-aware, as opposed to simply more long: widen a lot's exit target while the regime is UPTREND, so winners are given room to run instead of being sold one spacing above cost in the middle of a rally.
+
+| `uptrend_exit_mult` | Full-run return | Full-run max DD | Sub-window mean return | Sub-window mean DD |
+|---:|---:|---:|---:|---:|
+| 1.0x **(default)** | +56.13% | 41.86% | -0.84% | 17.56% |
+| 1.5x | +51.17% | 42.66% | -0.84% | 19.36% |
+| 2.0x | +63.12% | 42.66% | +0.73% | 19.35% |
+| 3.0x | +33.36% | 42.65% | +0.11% | 21.15% |
+| 5.0x | +66.42% | 41.90% | +1.95% | 23.31% |
+
+**Rejected.** The full-run return is non-monotone and jumps around by tens of points between adjacent settings -- that is noise, not a mechanism. Meanwhile the drawdown column *is* monotone and gets steadily worse. It buys performance in trending windows and pays for it in chop, which is the same trade the base position offers, reached less reliably. Picking the best-looking multiplier here would be precisely the curve-fitting this report claims not to do, so the default stays at 1.0 and the table is published.
+
 ## 3. `maker_fee` / `taker_fee` -- robustness of the fee assumption
 
 | Fee per side | Mean return | Mean max DD | Fee drag | Break-even spacing | Derived `s_floor` |

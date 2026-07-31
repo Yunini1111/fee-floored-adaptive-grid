@@ -238,6 +238,31 @@ class Config:
     # --- account ---
     initial_equity: float = 10_000.0
 
+    # Permanent buy-and-hold allocation, as a fraction of initial equity. Bought
+    # once at the first bar and never sold by the grid.
+    #
+    # Why this exists: a long-biased grid only buys BELOW its anchor and sells
+    # above, so it structurally does not participate in a trend. Over 2019-2026
+    # that is the single largest reason it trails BTC. A base position is the
+    # standard fix and is what most real grid products offer -- the base captures
+    # trend, the grid harvests oscillation around it.
+    #
+    # The base is a DECLARED LONG-TERM HOLD and is deliberately exempt from the
+    # grid's risk overlay: the inventory cap, the daily-loss halt and the drawdown
+    # kill all govern the grid sleeve only and never liquidate the base. That is a
+    # design choice with a real cost, and the risk notice states it plainly: you
+    # are accepting `base_fraction` x the asset's full drawdown as a floor.
+    base_fraction: float = 0.0
+
+    # Trend-scaled exits: in UPTREND, place a lot's exit at fill*(1 + s*mult)
+    # instead of fill*(1 + s), so winners are given room to run instead of being
+    # sold four percent above cost in the middle of a rally.
+    #
+    # This is the one "make the grid more dynamic" idea that is NOT just a
+    # disguised way of holding more BTC -- it changes the exit distribution
+    # rather than the average exposure. 1.0 disables it.
+    uptrend_exit_mult: float = 1.0
+
     # --- ablation switches (used to publish the improvement chain honestly) ---
     paired_exits: bool = True  # False = exits float with the grid (the broken design)
     regime_gate: bool = True  # False = one static inventory cap

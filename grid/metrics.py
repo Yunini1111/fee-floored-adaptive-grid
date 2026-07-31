@@ -39,10 +39,22 @@ def verify_cap_compliance(result) -> int:
     It shares no arithmetic with the gate, so it CAN fail, which is the entire
     point of having it.
     """
-    trades = sorted(result.trades, key=lambda t: (t.ts, 0 if t.side == "SELL" else 1))
+    # The base position is excluded: it is a declared buy-and-hold sleeve and is
+    # exempt from the grid's inventory cap by design. Including it here would make
+    # every configuration with a base look like a permanent cap violation.
+    trades = sorted(
+        (t for t in result.trades if t.reason != "BASE"),
+        key=lambda t: (t.ts, 0 if t.side == "SELL" else 1),
+    )
     context = {(ts, lot_id): (bar_open, cap) for ts, lot_id, bar_open, cap in result.cap_context}
 
-    cash = result.config.initial_equity
+    # Grid cash is whatever the base purchase did NOT consume. Deriving it from
+    # `initial_equity * base_fraction` instead of from the actual trade
+    # understates it, because the base quantity is floored to the exchange's step
+    # and therefore costs slightly less than the target -- which produced a
+    # spurious breach at every non-zero base fraction.
+    base_spent = sum(t.notional + t.fee for t in result.trades if t.reason == "BASE")
+    cash = result.config.initial_equity - base_spent
     holdings: dict[int, float] = {}
     breaches = 0
 

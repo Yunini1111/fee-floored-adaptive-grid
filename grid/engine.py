@@ -142,6 +142,8 @@ class BacktestResult:
     killed: bool = False
     kill_ts: int | None = None
     kill_count: int = 0
+    base_qty: float = 0.0  # permanent buy-and-hold sleeve, never sold
+    base_entry_price: float = 0.0
     halted_days: int = 0
     signals: list[DailySignal] = field(default_factory=list)
 
@@ -192,6 +194,8 @@ def run_backtest(
     lots: list[Lot] = []
     next_lot_id = 1
 
+    base_qty = 0.0
+
     resting_buys: list[tuple[float, float]] = []  # (price, notional) -- live next bar
     pending_buys: list[tuple[float, float]] = []  # placed this bar, not yet live (F1)
     filled_levels_today: set[float] = set()
@@ -202,8 +206,11 @@ def run_backtest(
     frozen_anchor: float | None = None
     freeze_days_left = 0
 
-    equity_hwm = cfg.initial_equity
-    day_start_equity = cfg.initial_equity
+    # Both of these track the GRID SLEEVE, not the account. R4 and R5 govern the
+    # grid; the base position is a declared hold and is not something a circuit
+    # breaker should be liquidating at a local bottom.
+    equity_hwm = cfg.initial_equity * (1.0 - cfg.base_fraction)
+    day_start_equity = cfg.initial_equity * (1.0 - cfg.base_fraction)
     halted_today = False
     killed = False
     kill_ts: int | None = None
@@ -222,9 +229,53 @@ def run_backtest(
     )
 
     def mark(price: float) -> tuple[float, float]:
-        inv_qty = sum(lot.qty for lot in lots)
-        inv_val = inv_qty * price
+        """(grid inventory value, GRID-SLEEVE equity).
+
+        Deliberately excludes the base position. Every risk control -- the
+        inventory cap, the daily-loss halt, the drawdown kill -- governs the grid
+        sleeve only. Folding a large base into these numbers would make a 50% base
+        instantly exhaust a 50% inventory cap and leave the grid unable to trade,
+        which is not what a base position is for.
+        """
+        inv_val = sum(lot.qty for lot in lots) * price
         return inv_val, cash + inv_val
+
+    def total_equity(price: float) -> tuple[float, float]:
+        """(total exposure value, total account equity), base included.
+
+        This is what gets reported and charted. The gap between this and `mark`
+        is the whole point of the base position, and the risk notice says so.
+        """
+        exposure = (base_qty + sum(lot.qty for lot in lots)) * price
+        return exposure, cash + exposure
+
+    # Base position: bought once, at the first bar's open, as a maker order.
+    # Never sold -- not by the grid, not by the regime gate, not by the kill
+    # switch. It is the declared buy-and-hold half of the strategy.
+    if cfg.base_fraction > 0 and n > 0:
+        entry = float(op[0])
+        target = cfg.initial_equity * cfg.base_fraction
+        base_qty = floor_to_step(target / (entry * (1.0 + cfg.maker_fee)), cfg.qty_step)
+        if base_qty > 0:
+            base_fee = base_qty * entry * cfg.maker_fee
+            cash -= base_qty * entry + base_fee
+            out.fees_maker += base_fee
+            out.base_qty = base_qty
+            out.base_entry_price = entry
+            out.trades.append(
+                Trade(
+                    ts=int(ts[0]),
+                    side="BUY",
+                    price=entry,
+                    qty=base_qty,
+                    notional=base_qty * entry,
+                    fee=base_fee,
+                    liquidity="MAKER",
+                    reason="BASE",
+                    regime="NA",
+                    lot_id=0,
+                )
+            )
 
     def sell_lot(lot: Lot, price: float, when: int, reason: str, liquidity: str) -> float:
         """Close `lot` at `price`. Returns realized PnL net of both legs' fees."""
@@ -358,8 +409,9 @@ def run_backtest(
                         pending_buys = [(p, per_level) for p in signal.buy_levels]
 
         if signal is None:
-            out.equity[i] = cash
-            out.inventory_ratio[i] = 0.0
+            _exposure, _total = total_equity(float(cl[i]))
+            out.equity[i] = _total
+            out.inventory_ratio[i] = _exposure / _total if _total > 0 else 0.0
             continue
 
         out.regime_code[i] = _REGIME_CODE[signal.regime]
@@ -462,8 +514,11 @@ def run_backtest(
                 else:
                     out.fees_maker += fee
 
+                exit_mult = (
+                    cfg.uptrend_exit_mult if signal.regime is Regime.UPTREND else 1.0
+                )
                 exit_price = round_up_to_tick(
-                    fill_price * (1.0 + signal.spacing), cfg.price_tick
+                    fill_price * (1.0 + signal.spacing * exit_mult), cfg.price_tick
                 )
                 new_lot = Lot(
                     lot_id=next_lot_id,
@@ -504,9 +559,11 @@ def run_backtest(
         # ------------------------------------------------------------------ #
         # Mark, then evaluate the risk overlay for the NEXT bar
         # ------------------------------------------------------------------ #
+        # Risk gates read the grid sleeve; the reported curve is the whole account.
         inv_val, equity = mark(bar_close)
-        out.equity[i] = equity
-        out.inventory_ratio[i] = inv_val / equity if equity > 0 else 0.0
+        exposure, account = total_equity(bar_close)
+        out.equity[i] = account
+        out.inventory_ratio[i] = exposure / account if account > 0 else 0.0
         equity_hwm = max(equity_hwm, equity)
 
         # Two different questions, deliberately counted separately, and neither
@@ -551,8 +608,9 @@ def run_backtest(
                 out.derisk_pnl += pnl
                 inv_val -= lot.qty * bar_close
             inv_val, equity = mark(bar_close)
-            out.equity[i] = equity
-            out.inventory_ratio[i] = inv_val / equity if equity > 0 else 0.0
+            exposure, account = total_equity(bar_close)
+            out.equity[i] = account
+            out.inventory_ratio[i] = exposure / account if account > 0 else 0.0
 
         if signal is not None and (i == n - 1 or utc_day_start_ms(int(ts[i + 1])) != current_day):
             out.signals.append(signal)

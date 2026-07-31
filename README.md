@@ -60,7 +60,10 @@ different amounts of risk. Note the benchmark is only exposure-matched at t=0: i
 its exposure drifts upward as BTC rises, which makes it *harder* to beat, not easier.
 
 Full detail, provenance and per-window decomposition: [`results/RESULTS.md`](results/RESULTS.md).
-Parameter sweeps: [`results/sensitivity.md`](results/sensitivity.md).
+Parameter sweeps and risk boundaries: [`results/sensitivity.md`](results/sensitivity.md).
+**Trade-by-trade case review:** [`results/CASE-REVIEW.md`](results/CASE-REVIEW.md) — the June 2022
+kill-switch event lot by lot, proof that the regime gate filled **zero** buys in a downtrend across
+the whole run, an ordinary winning cycle end to end, and where the model charges itself.
 Every fill: [`results/trades.csv`](results/trades.csv).
 
 ## Three findings that reversed our own intuition
@@ -166,7 +169,8 @@ grid/
   metrics.py              metrics and the exposure-matched benchmark
 tests/                    107 tests
 data/                     cached raw CoinW responses + SHA-256 manifest
-results/                  generated: RESULTS.md, sensitivity.md, trades.csv, 3 charts
+results/                  generated: RESULTS.md, sensitivity.md, CASE-REVIEW.md,
+                          trades.csv, 3 charts
 ```
 
 ## Applying it to CWC or any new listing

@@ -286,7 +286,8 @@ choppy and declining markets.
 - Standard output format — §8
 - Invalidation conditions — §9
 - Backtest and simulation results — `results/RESULTS.md`, reproducible with one command
-- Parameter sensitivity — `results/sensitivity.md`
+- Parameter sensitivity and risk boundaries — `results/sensitivity.md`
+- Trade-by-trade case review — `results/CASE-REVIEW.md`, generated from the trade log
 - Full trade log — `results/trades.csv`
 
 ## 11. Public GitHub Link

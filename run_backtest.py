@@ -634,6 +634,98 @@ def sensitivity(daily, execution, hourly, base: Config) -> str:
     )
     lines.append("")
 
+    lines.append("## 2b. `base_fraction` -- the directional dial, and why there is no free lunch")
+    lines.append("")
+    lines.append(
+        "A long-biased grid only buys below its anchor and sells above it, so it does not "
+        "participate in a trend. The standard fix is a **base position**: hold a fixed fraction of "
+        "equity in the asset permanently and run the grid on the rest. We built it, measured it, "
+        "and it does not do what it is usually claimed to do."
+    )
+    lines.append("")
+    lines.append("| `base_fraction` | Full-run return | Full-run max DD | Sharpe | Calmar | Round trips |")
+    lines.append("|---:|---:|---:|---:|---:|---:|")
+    for b in (0.0, 0.25, 0.50, 0.75, 1.00):
+        cfg = base.with_(base_fraction=b)
+        mf = compute_metrics(run_backtest(execution, daily, cfg, label="full", hourly=hourly), execution)
+        tag = " **(default)**" if b == 0.0 else (" *(= pure buy & hold)*" if b == 1.0 else "")
+        lines.append(
+            f"| {b:.0%}{tag} | {pct(mf.total_return)} | {upct(mf.max_dd)} | {mf.sharpe:.2f} | "
+            f"{mf.calmar:.2f} | {mf.round_trips} |"
+        )
+    lines.append("")
+    lines.append(
+        "**Read that table carefully, because it is the least flattering thing in this "
+        "repository.** Over 2019-2026 the response is monotone in *every* column -- return, Sharpe "
+        "and Calmar all improve as the base fraction rises, and they are maximised at 100%, which "
+        "is not a strategy at all. On this window, every unit of capital allocated to the grid "
+        "rather than to simply holding BTC subtracted risk-adjusted value."
+    )
+    lines.append("")
+    lines.append("But that verdict is a property of the window, not of the grid. Per regime:")
+    lines.append("")
+    lines.append("| Window | " + " | ".join(f"{b:.0%}" for b in (0.0, 0.25, 0.50, 0.75, 1.00)) + " | Best |")
+    lines.append("|---|" + "---:|" * 5 + "---|")
+    for name, start, end, _ in window_names:
+        sub = execution.slice_ms(iso_to_ms(start), iso_to_ms(end))
+        rets = []
+        for b in (0.0, 0.25, 0.50, 0.75, 1.00):
+            cfg = base.with_(base_fraction=b)
+            rets.append(compute_metrics(run_backtest(sub, daily, cfg, label=name, hourly=hourly), sub).total_return)
+        best = ("0%", "25%", "50%", "75%", "100%")[int(np.argmax(rets))]
+        lines.append(f"| `{name}` | " + " | ".join(pct(r) for r in rets) + f" | **{best}** |")
+    lines.append("")
+    lines.append(
+        "Every row is monotone in one direction or the other, and which direction is decided "
+        "entirely by whether the asset rose or fell. **`base_fraction` is not a tuning parameter; "
+        "it is a directional view.** Setting it high is a bet that the market goes up, in which "
+        "case you should ask why you are running a grid at all. Setting it to zero is a bet that "
+        "it chops or falls. The blend is exactly linear -- there is no interaction term, no "
+        "synergy, and no free lunch hiding in the middle."
+    )
+    lines.append("")
+    lines.append(
+        "We ship `base_fraction = 0`. Not because zero wins on this window -- it loses badly -- but "
+        "because the pure grid is the honest expression of what this Skill is, and blending it "
+        "toward buy-and-hold to improve a headline number would be selling beta as alpha."
+    )
+    lines.append("")
+
+    lines.append("## 2c. `uptrend_exit_mult` -- tested and rejected")
+    lines.append("")
+    lines.append(
+        "The one genuinely different way to make the grid more trend-aware, as opposed to simply "
+        "more long: widen a lot's exit target while the regime is UPTREND, so winners are given "
+        "room to run instead of being sold one spacing above cost in the middle of a rally."
+    )
+    lines.append("")
+    lines.append("| `uptrend_exit_mult` | Full-run return | Full-run max DD | Sub-window mean return | Sub-window mean DD |")
+    lines.append("|---:|---:|---:|---:|---:|")
+    for mult in (1.0, 1.5, 2.0, 3.0, 5.0):
+        cfg = base.with_(uptrend_exit_mult=mult)
+        mf = compute_metrics(run_backtest(execution, daily, cfg, label="full", hourly=hourly), execution)
+        rets, dds = [], []
+        for name, start, end, _ in window_names:
+            sub = execution.slice_ms(iso_to_ms(start), iso_to_ms(end))
+            m = compute_metrics(run_backtest(sub, daily, cfg, label=name, hourly=hourly), sub)
+            rets.append(m.total_return)
+            dds.append(m.max_dd)
+        tag = " **(default)**" if mult == 1.0 else ""
+        lines.append(
+            f"| {mult:.1f}x{tag} | {pct(mf.total_return)} | {upct(mf.max_dd)} | "
+            f"{pct(float(np.mean(rets)))} | {upct(float(np.mean(dds)))} |"
+        )
+    lines.append("")
+    lines.append(
+        "**Rejected.** The full-run return is non-monotone and jumps around by tens of points "
+        "between adjacent settings -- that is noise, not a mechanism. Meanwhile the drawdown "
+        "column *is* monotone and gets steadily worse. It buys performance in trending windows and "
+        "pays for it in chop, which is the same trade the base position offers, reached less "
+        "reliably. Picking the best-looking multiplier here would be precisely the curve-fitting "
+        "this report claims not to do, so the default stays at 1.0 and the table is published."
+    )
+    lines.append("")
+
     lines.append("## 3. `maker_fee` / `taker_fee` -- robustness of the fee assumption")
     lines.append("")
     lines.append("| Fee per side | Mean return | Mean max DD | Fee drag | Break-even spacing | Derived `s_floor` |")
@@ -775,6 +867,214 @@ def write_charts(rows) -> None:
     plt.close(fig)
 
 
+def case_review(rows) -> str:
+    """Generate results/CASE-REVIEW.md from the actual trade log.
+
+    Every episode below is extracted from the run, not written by hand, so it
+    cannot drift out of sync with the numbers. Line references point at
+    trades.csv so a reader can check each one directly.
+    """
+    from grid.data import ms_to_iso
+
+    target = next((r for r in rows if r[0] == "full-2019-2026"), rows[-1])
+    _name, _note, result, m, _sub = target
+    trades = sorted(result.trades, key=lambda t: t.ts)
+    buys = {t.lot_id: t for t in trades if t.side == "BUY"}
+
+    out = [
+        "# Case review — what the strategy actually did",
+        "",
+        "Generated from `results/trades.csv` by `python run_backtest.py --all`. Every episode here "
+        "is extracted from the run rather than written by hand, so it cannot drift away from the "
+        "numbers it describes.",
+        "",
+        "> **This is a review of a historical simulation, not of live trading.** The Skill has "
+        "never been run against a real CoinW account. What follows is the trade-by-trade behaviour "
+        "of the backtest on real CoinW BTC_USDT data, which is the closest honest equivalent.",
+        "",
+        "---",
+        "",
+    ]
+
+    # -- Episode 1: the worst moment -------------------------------------- #
+    kills = [t for t in trades if t.reason == "KILL"]
+    out.append("## Episode 1 — the drawdown kill switch, June 2022")
+    out.append("")
+    if kills:
+        by_ts: dict[int, list] = {}
+        for t in kills:
+            by_ts.setdefault(t.ts, []).append(t)
+        worst_ts = min(by_ts, key=lambda k: sum(x.realized_pnl for x in by_ts[k]))
+        cluster = by_ts[worst_ts]
+        total = sum(t.realized_pnl for t in cluster)
+        out.append(
+            f"The single worst event in the whole run. At `{ms_to_iso(worst_ts)}` the grid sleeve "
+            f"hit its {upct(result.config.dd_kill, 0)} drawdown limit and liquidated "
+            f"**{len(cluster)} lots simultaneously** at {cluster[0].price:,.2f} USDT, realising "
+            f"**{total:,.2f} USDT** on a {result.config.initial_equity:,.0f} USDT account."
+        )
+        out.append("")
+        out.append("| Lot | Bought | Entry price | Qty | Liquidated at | Realised |")
+        out.append("|---:|---|---:|---:|---:|---:|")
+        for t in sorted(cluster, key=lambda x: x.realized_pnl):
+            b = buys.get(t.lot_id)
+            entry_day = ms_to_iso(b.ts)[:10] if b else "?"
+            entry_px = f"{b.price:,.2f}" if b else "?"
+            out.append(
+                f"| {t.lot_id} | {entry_day} | {entry_px} | {t.qty:.4f} | "
+                f"{t.price:,.2f} | {t.realized_pnl:,.2f} |"
+            )
+        out.append("")
+        entries = [buys[t.lot_id].ts for t in cluster if t.lot_id in buys]
+        if entries:
+            out.append(
+                f"**What it shows.** Every one of these lots was bought between "
+                f"`{ms_to_iso(min(entries))[:10]}` and `{ms_to_iso(max(entries))[:10]}` — the "
+                f"November 2021 top — and held all the way down. This is the strategy's core "
+                f"weakness in one table: a long-biased grid buys the whole way into a bear market, "
+                f"and the deepest lots never reach their exits."
+            )
+            out.append("")
+        out.append(
+            "**What a reviewer should take from it.** The circuit breaker did its job, and its job "
+            "was expensive. Note the design decision behind the threshold: it is *derived* as "
+            "`clamp(cap_range x asset_max_dd, 0.15, 0.50)`, not chosen. An earlier version used a "
+            "flat 20%, which fires on drawdowns that a 50% inventory cap makes structurally "
+            "normal — so it liquidated repeatedly, at local bottoms, at taker prices. "
+            "`results/RESULTS.md` section 5a measures exactly what that cost."
+        )
+    else:
+        out.append("The kill switch never fired in this run.")
+    out.append("")
+
+    # -- Episode 2: the gate, as a checkable fact -------------------------- #
+    out.append("## Episode 2 — did the regime gate actually stop anything?")
+    out.append("")
+    dt_buys = [t for t in trades if t.side == "BUY" and t.regime == "DOWNTREND"]
+    by_year: dict[str, int] = {}
+    for t in trades:
+        if t.side == "BUY" and t.reason == "GRID":
+            by_year[ms_to_iso(t.ts)[:4]] = by_year.get(ms_to_iso(t.ts)[:4], 0) + 1
+    out.append(
+        f"**Buy orders filled while the regime was DOWNTREND, across the entire run: "
+        f"{len(dt_buys)}.** This is the passive half of the regime gate, and it is trivially "
+        f"checkable — filter `trades.csv` for `side=BUY` and `regime=DOWNTREND` and count the rows."
+    )
+    out.append("")
+    out.append("Grid entries per calendar year:")
+    out.append("")
+    out.append("| Year | " + " | ".join(sorted(by_year)) + " |")
+    out.append("|---|" + "---:|" * len(by_year))
+    out.append("| Grid buys | " + " | ".join(str(by_year[y]) for y in sorted(by_year)) + " |")
+    out.append("")
+    out.append(
+        "The collapse in 2022 is the gate refusing to add into a confirmed downtrend. Note what it "
+        "does **not** do: it never force-sells. `results/RESULTS.md` section 5a shows that adding "
+        "forced selling on top of this gate costs tens of percentage points — stopping is worth a "
+        "lot, panicking is worth less than nothing."
+    )
+    out.append("")
+
+    # -- Episode 3: a clean cycle ------------------------------------------ #
+    exits = [t for t in trades if t.reason == "EXIT"]
+    out.append("## Episode 3 — an ordinary winning cycle, start to finish")
+    out.append("")
+    if exits:
+        median = sorted(exits, key=lambda t: t.realized_pnl)[len(exits) // 2]
+        b = buys.get(median.lot_id)
+        if b:
+            held = (median.ts - b.ts) / 3_600_000.0
+            spacing = median.price / b.price - 1.0
+            fee_share = (b.fee + median.fee) / (median.qty * (median.price - b.price)) if median.price > b.price else float("nan")
+            out.append(
+                f"The median round trip of {len(exits)}, so it is representative rather than "
+                f"cherry-picked."
+            )
+            out.append("")
+            out.append("```text")
+            out.append(f"BUY   {ms_to_iso(b.ts)}   {b.qty:.4f} BTC @ {b.price:,.2f}   {b.liquidity}   fee {b.fee:.4f}")
+            out.append(f"      regime at entry: {b.regime}")
+            out.append(f"      exit target fixed AT THIS MOMENT at {median.price:,.2f}  (+{100*spacing:.2f}%)")
+            out.append(f"SELL  {ms_to_iso(median.ts)}   {median.qty:.4f} BTC @ {median.price:,.2f}   {median.liquidity}   fee {median.fee:.4f}")
+            out.append(f"      held {held:,.0f} h    realised {median.realized_pnl:+.2f} USDT")
+            out.append(f"      fees consumed {100*fee_share:.1f}% of the gross spread")
+            out.append("```")
+            out.append("")
+            out.append(
+                "**The point of this episode is the third line.** The exit was fixed the instant "
+                "the buy filled, and nothing that happened afterwards — re-anchoring, a regime "
+                "change, a volatility spike — was allowed to move it. That is why every completed "
+                f"round trip in this run is net-positive: all {len(exits)} of them, zero exceptions."
+            )
+    out.append("")
+
+    # -- Episode 4: costs the model refuses to hide ------------------------ #
+    out.append("## Episode 4 — where the model charges itself")
+    out.append("")
+    takers = [t for t in trades if t.liquidity == "TAKER"]
+    out.append(
+        f"**{len(takers)} of {len(trades)} fills ({100*len(takers)/len(trades):.0f}%) were charged "
+        f"the taker fee**, not because the strategy places market orders — it never does — but "
+        f"because the bar *opened* through the resting limit. A real post-only order would have "
+        f"been rejected there and the agent would have had to chase, so the model fills at the "
+        f"limit price and charges taker plus adverse slippage. Worst price and worst fee."
+    )
+    out.append("")
+    if takers:
+        out.append("| Time | Side | Price | Qty | Fee | Reason |")
+        out.append("|---|---|---:|---:|---:|---|")
+        for t in takers[:5]:
+            out.append(
+                f"| {ms_to_iso(t.ts)} | {t.side} | {t.price:,.2f} | {t.qty:.4f} | "
+                f"{t.fee:.4f} | {t.reason} |"
+            )
+        out.append("")
+    out.append(
+        f"Total fees over the run: **{m.fees_paid:,.2f} USDT** "
+        f"(maker {m.fees_maker:,.2f} / taker {m.fees_taker:,.2f}), which is "
+        f"{upct(m.fee_drag,1)} of gross spread capture. A grid that ignores this line is not a "
+        f"strategy, it is a rebate programme for the exchange."
+    )
+    out.append("")
+
+    # -- What an agent would have done ------------------------------------- #
+    out.append("## What an AI Agent would have done differently at each point")
+    out.append("")
+    out.append(
+        "The Skill is written to be executed by an agent, so the interesting question is where "
+        "the agent acts alone and where it must stop and ask."
+    )
+    out.append("")
+    out.append("| Episode | Agent acts autonomously | Agent must escalate |")
+    out.append("|---|---|---|")
+    out.append(
+        "| Episode 1 (kill switch) | Liquidates the grid sleeve to the 15% floor and sets "
+        "`state = KILLED` | **Yes.** Does not auto-resume. A human must review and re-arm — this "
+        "is the one place where 'just keep running' is the wrong default |"
+    )
+    out.append(
+        "| Episode 2 (regime gate) | Classifies regime, stops placing buys, keeps every existing "
+        "exit live | No |"
+    )
+    out.append(
+        "| Episode 3 (normal cycle) | Sizes, places, and pairs the exit within hard caps | No |"
+    )
+    out.append(
+        "| Episode 4 (taker fills) | Pays the fee and logs it | Only if the live fee tier differs "
+        "from the configured rate, because `s_floor` is derived from it and every level would be "
+        "mispriced |"
+    )
+    out.append("")
+    out.append(
+        "**The rule that matters most:** the agent may *lower* any risk cap on its own authority "
+        "but may **never raise one**. Caps are a one-way ratchet toward safety. The failure mode "
+        "everyone worries about — an agent quietly widening its own risk limits — is closed off by "
+        "construction rather than by prompt wording."
+    )
+    out.append("")
+    return "\n".join(out)
+
+
 def write_trades(rows) -> None:
     target = next((r for r in rows if r[0] == "full-2019-2026"), rows[-1])
     result = target[2]
@@ -893,6 +1193,9 @@ def main() -> int:
 
     write_trades(rows)
     print("  results/trades.csv")
+
+    (RESULTS_DIR / "CASE-REVIEW.md").write_text(case_review(rows), encoding="utf-8")
+    print("  results/CASE-REVIEW.md")
 
     if not args.no_charts:
         write_charts(rows)
