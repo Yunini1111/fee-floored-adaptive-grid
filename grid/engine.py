@@ -20,10 +20,11 @@ So the rules below are all biased against the strategy:
 
     F1  Order lag           orders placed on bar t are live from bar t+1's open.
                             Daily indicators for UTC day D use only bars <= D-1.
-    F2  Atomic bar          state is snapshotted at the bar open, every fill is
-                            evaluated against that snapshot, and all changes apply
-                            at the close. Cash freed by a sell on bar t cannot
-                            fund a buy on bar t.
+    F2  Atomic bar          cash AND the lot book are snapshotted at the bar open,
+                            every fill is evaluated against that snapshot, and all
+                            changes apply at the close. A sell on bar t frees
+                            neither cash, nor a lot slot, nor inventory headroom
+                            for a buy on bar t.
     F3  Buy fill            low < p*(1-eps), eps = 1bp. `low == p` is NOT a fill:
                             the market must trade THROUGH us, not merely touch us.
     F4  Sell fill           high > p*(1+eps).
@@ -32,11 +33,20 @@ So the rules below are all biased against the strategy:
     F6  Gap-through penalty if the bar OPENS through our limit, a post-only order
                             would have been rejected and a real agent would have
                             had to chase -> fill at p but charge the TAKER fee.
-    F7  One fill per level per bar.
-    F8  De-risk sales       always at the bar CLOSE with taker fee, never the high.
+    F7  One fill per level per UTC DAY. The ladder is refreshed once daily (R7),
+                            and a level that fills is not re-armed until the next
+                            rollover. Stricter than the usual per-bar rule.
+    F8  Forced sales        regime de-risking prices at the last CLOSE known at the
+                            00:00 rollover, i.e. the previous bar's close, with the
+                            taker fee. The drawdown kill prices at the current bar's
+                            close. Neither ever prices at the high.
     F9  Slippage            0bp maker, 5bp taker, applied adversely. The 5bp is an
                             ASSUMPTION, not a measurement -- there is no order-book
                             data to calibrate it against.
+
+    Risk gates are evaluated on prices knowable at the moment of the decision --
+    the bar's open for existing inventory, the fill price for the lot being
+    opened. Never the bar's close, which has not happened yet.
 
 Residual optimism is disclosed rather than hidden: even with F3's through-buffer
 the model assumes we are at the front of the queue at every price we trade
@@ -357,6 +367,12 @@ def run_backtest(
         )
         snapshot_cash = cash
         committed = 0.0
+        # F2: the lot book as it stood at the OPEN. Reading `lots` directly after
+        # this bar's exits have run would let a sell on bar t free an R3 lot slot
+        # and inventory headroom for a buy on bar t -- the same violation the cash
+        # snapshot exists to prevent, just via a different field.
+        lots_at_open = list(lots)
+        opened_this_bar: list[Lot] = []
 
         # ---- exits first (they are always live and never re-priced) -------- #
         for lot in list(lots):
@@ -393,7 +409,7 @@ def run_backtest(
                 if cfg.fill_probability < 1.0 and rng.random() > cfg.fill_probability:
                     filled_levels_today.add(price)  # excursion missed, see note above
                     continue
-                if len(lots) >= cfg.max_open_lots:  # R3
+                if len(lots_at_open) + len(opened_this_bar) >= cfg.max_open_lots:  # R3, on the open book
                     continue
 
                 liquidity = "TAKER" if bar_open < price else "MAKER"  # F6
@@ -407,20 +423,24 @@ def run_backtest(
                 if snapshot_cash - committed < cost:  # F2 solvency on the snapshot
                     continue
 
-                # R1, evaluated on the POST-TRADE book exactly as the end-of-bar
-                # mark will see it. Two subtleties, both of which produced real
-                # (if tiny) breaches when this was written the obvious way:
-                #   - the new lot must be valued at the CLOSE, not at its cost; a
-                #     lot bought on a bar that closes higher marks above what it
-                #     cost, so gating on the notional tips over the cap.
-                #   - paying the fee shrinks equity but not inventory, which lifts
-                #     the ratio. Gating on pre-fee equity leaves us a fee's width
-                #     over the line.
+                # R1, evaluated ONLY on prices knowable at the moment of the fill:
+                # the bar's open for inventory already held, and the fill price
+                # itself for the lot being opened.
+                #
+                # An earlier version marked both at the bar's CLOSE. That drove the
+                # reported breach count to zero, but only because the gate was
+                # reading a price that does not exist yet -- the engine was using
+                # future information to guarantee the very number it reports. A
+                # control that can only be satisfied with hindsight is not a control.
+                # Marking at the open is what a live agent can actually do, and the
+                # residual drift between the gate and the close-marked ratio is
+                # reported separately as `bars_above_cap`.
+                #
                 # Cash committed earlier this bar is already spent. Proceeds from
-                # exits earlier this bar are deliberately NOT counted (F2), which
-                # only ever makes this check stricter than reality.
-                inv_val_now = sum(lot.qty for lot in lots) * bar_close
-                post_inventory = inv_val_now + qty * bar_close
+                # exits earlier this bar are deliberately NOT counted (F2).
+                inventory_at_open = sum(lot.qty for lot in lots_at_open) * bar_open
+                opened_value = sum(l.qty * l.entry_price for l in opened_this_bar)
+                post_inventory = inventory_at_open + opened_value + qty * fill_price
                 post_cash = snapshot_cash - committed - cost
                 post_equity = post_cash + post_inventory
                 if post_equity <= 0 or post_inventory > signal.inventory_cap * post_equity:
@@ -437,18 +457,23 @@ def run_backtest(
                 exit_price = round_up_to_tick(
                     fill_price * (1.0 + signal.spacing), cfg.price_tick
                 )
-                lots.append(
-                    Lot(
-                        lot_id=next_lot_id,
-                        qty=qty,
-                        entry_price=fill_price,
-                        entry_ts=bar_ts,
-                        entry_fee=fee,
-                        exit_price=exit_price,
-                        entry_regime=signal.regime.value,
-                        entry_spacing=signal.spacing,
-                    )
+                new_lot = Lot(
+                    lot_id=next_lot_id,
+                    qty=qty,
+                    entry_price=fill_price,
+                    entry_ts=bar_ts,
+                    entry_fee=fee,
+                    exit_price=exit_price,
+                    entry_regime=signal.regime.value,
+                    entry_spacing=signal.spacing,
                 )
+                lots.append(new_lot)
+                opened_this_bar.append(new_lot)
+
+                # R1 self-check, on the same decision-time information the gate
+                # used. This must never fire; if it does, the gate is broken.
+                if post_equity > 0 and post_inventory > signal.inventory_cap * post_equity * (1 + 1e-9):
+                    out.cap_breaches += 1
                 out.trades.append(
                     Trade(
                         ts=bar_ts,
@@ -480,22 +505,22 @@ def run_backtest(
         out.inventory_ratio[i] = inv_val / equity if equity > 0 else 0.0
         equity_hwm = max(equity_hwm, equity)
 
-        # Two different questions, deliberately counted separately.
+        # Two different questions, deliberately counted separately, and neither
+        # is allowed to launder the other.
         #
-        # cap_breaches asks "did OUR OWN action put inventory over the cap?" and
-        # must be 0 -- it is a control-failure counter and a test asserts on it.
+        # cap_breaches (incremented at fill time, above) asks "did our own action
+        # break R1 given what we knew when we acted?" It must be 0, and a test
+        # asserts it. Critically it is evaluated on decision-time prices, so it
+        # cannot be satisfied by hindsight.
         #
-        # bars_above_cap asks "how many bars did mark-to-market drift leave us
-        # above the cap?", which is not a control failure: a rising price raises
-        # the inventory ratio without us trading, and no cap can be enforced
-        # continuously without trading continuously. Reporting only the first
-        # number would look like the cap is airtight; reporting only the second
-        # would look like it is constantly violated. Both, always.
-        over_cap = equity > 0 and inv_val > (signal.inventory_cap + 1e-9) * equity
-        if over_cap:
+        # bars_above_cap asks "how many bars did mark-to-market drift leave the
+        # close-marked ratio above the cap?" This is NOT a control failure: a
+        # rising price lifts the inventory ratio without us trading, and no cap
+        # can be enforced continuously without trading continuously. It is
+        # expected to be non-zero, and reporting it is the honest half of the
+        # picture.
+        if equity > 0 and inv_val > (signal.inventory_cap + 1e-9) * equity:
             out.bars_above_cap += 1
-            if committed > 0:
-                out.cap_breaches += 1
 
         # R4 daily loss limit: stop buying for the rest of the UTC day, keep exits.
         if not halted_today and equity < (1.0 - cfg.daily_loss_limit) * day_start_equity:
@@ -512,7 +537,8 @@ def run_backtest(
             out.kill_count += 1
             resting_buys = []
             target_inv = cfg.cap_downtrend * equity
-            for lot in sorted(lots, key=lambda x: -x.entry_price):
+            kill_sign = -1.0 if cfg.derisk_highest_cost_first else 1.0
+            for lot in sorted(lots, key=lambda x: kill_sign * x.entry_price):
                 if inv_val <= target_inv:
                     break
                 pnl = sell_lot(lot, bar_close, bar_ts, "KILL", "TAKER")

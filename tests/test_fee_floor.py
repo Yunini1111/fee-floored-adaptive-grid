@@ -12,6 +12,7 @@ from grid.strategy import (
     breakeven_spacing,
     net_edge_per_round_trip,
     spacing_floor,
+    worst_case_round_trip,
 )
 
 
@@ -98,6 +99,41 @@ def test_dd_kill_always_exceeds_structurally_normal_drawdown_at_shipped_defaults
     structurally_normal = cfg.cap_range * cfg.asset_max_dd
     assert cfg.dd_kill >= structurally_normal - 1e-9
     assert 0.20 < structurally_normal  # the old hardcoded value was below it
+
+
+def test_s_floor_is_derived_from_the_worst_fee_not_the_maker_fee():
+    """Rule F6 can make either leg a taker fill, so a maker-only floor is a hole."""
+    cfg = Config(maker_fee=0.0010, taker_fee=0.0020)
+    assert cfg.worst_fee == 0.0020
+    assert cfg.s_floor == pytest.approx(spacing_floor(0.0020, cfg.target_edge))
+    assert cfg.s_floor > spacing_floor(0.0010, cfg.target_edge)
+
+
+def test_worst_case_round_trip_is_negative_at_a_maker_only_floor_with_a_high_taker_fee():
+    """The concrete hole this guard closes: maker 0.10% / taker 0.20% is an
+    entirely ordinary retail schedule, and a floor derived from the maker rate
+    alone makes a both-legs-taker round trip lose money."""
+    naive_floor = spacing_floor(0.0010, 0.0015)  # what a maker-only derivation gives
+    assert worst_case_round_trip(naive_floor, taker_fee=0.0020, slippage=0.0005) < 0
+
+
+def test_validate_rejects_a_taker_fee_that_breaks_the_invariant():
+    with pytest.raises(ValueError, match="worst-case round trip"):
+        Config(maker_fee=0.0010, taker_fee=0.0020, target_edge=0.0001).validate()
+
+
+def test_shipped_defaults_survive_the_worst_case():
+    cfg = Config()
+    cfg.validate()
+    assert worst_case_round_trip(cfg.s_floor, cfg.taker_fee, cfg.taker_slippage) > 0
+
+
+def test_worst_case_is_monotone_in_the_taker_fee():
+    values = [
+        worst_case_round_trip(0.0035, taker_fee=f, slippage=0.0005)
+        for f in (0.0002, 0.0005, 0.0010, 0.0015, 0.0020)
+    ]
+    assert values == sorted(values, reverse=True)
 
 
 def test_geometric_spacing_gives_equal_net_edge_at_every_level():

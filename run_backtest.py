@@ -88,9 +88,12 @@ def load_data(offline: bool):
 def integrity_section(daily, execution, hourly, constraints) -> str:
     lines = ["## 1. Data provenance and integrity", ""]
     lines.append(
-        "All bars come from CoinW's public, unauthenticated kline endpoint. Every raw "
-        "response is cached under `data/` with a SHA-256 manifest, so `--offline` "
-        "reproduces these numbers byte-for-byte without a network call."
+        "All bars come from CoinW's public, unauthenticated kline endpoint. Every raw response is "
+        "cached under `data/` with a SHA-256 manifest. The cache is ~90 MB and is gitignored, so a "
+        "fresh clone carries `data/manifest.json` but not the responses: **the first run needs "
+        "network access.** Once `python run_backtest.py --all` has populated `data/`, `--offline` "
+        "reproduces every number here byte-for-byte with no further network call, and the manifest "
+        "lets a reviewer confirm they hold the same bytes these results were computed from."
     )
     lines.append("")
     lines.append("```")
@@ -349,35 +352,66 @@ def chain_section(daily, execution, hourly, base: Config) -> str:
     lines.append("")
     lines.append("### 5a. Three findings that reversed our own intuition")
     lines.append("")
+    lines.append("Every number below is computed at generation time, not transcribed.")
+    lines.append("")
+
+    def full_run(**kw):
+        cfg = base.with_(**kw)
+        r = run_backtest(full, daily, cfg, label="full", hourly=hourly)
+        return r, compute_metrics(r, full)
+
+    # Finding 1 -- active de-risk
+    _r_off, m_off = full_run()
+    _r_on, m_on = full_run(active_derisk=True)
+    _r_nogate, m_nogate = full_run(regime_gate=False, active_derisk=False)
     lines.append(
-        "**1. Force-selling into a downtrend is a wealth transfer, not a risk control.** Variant D "
-        "sells inventory down to the 15% DOWNTREND cap whenever the regime turns down. It is the "
-        "obvious design, it is what the risk section of most grid write-ups describes, and over "
-        "the full run it costs **44 percentage points** against simply not doing it. Selling into "
-        "weakness at taker prices and rebuying when the regime flips back is a pump that runs in "
-        "the wrong direction. What *does* work is the passive half of the same gate -- refusing to "
-        "add new buys in a downtrend -- worth +18 points. **Stop adding; do not panic-sell; keep a "
-        "properly calibrated circuit breaker for real emergencies.**"
+        f"**1. Force-selling into a downtrend is a wealth transfer, not a risk control.** Selling "
+        f"inventory down to the 15% DOWNTREND cap when the regime turns down is the obvious design "
+        f"and it is what most grid write-ups describe. Over the full run it returns "
+        f"{pct(m_on.total_return)} against {pct(m_off.total_return)} for not doing it -- a cost of "
+        f"**{100 * (m_off.total_return - m_on.total_return):.1f} percentage points**. Selling into "
+        f"weakness at taker prices and rebuying when the regime flips back is a pump running in the "
+        f"wrong direction. What *does* work is the passive half of the same gate, refusing to add "
+        f"new buys in a downtrend: {pct(m_nogate.total_return)} without it against "
+        f"{pct(m_off.total_return)} with it, worth "
+        f"**{100 * (m_off.total_return - m_nogate.total_return):.1f} points**. "
+        f"**Stop adding; do not panic-sell; keep a properly calibrated circuit breaker.**"
     )
     lines.append("")
+
+    # Finding 2 -- the kill threshold
+    _r_k20, m_k20 = full_run(dd_kill_override=0.20)
+    kills_20 = sum(
+        t.realized_pnl for t in _r_k20.trades if t.reason == "KILL"
+    )
+    kills_derived = sum(t.realized_pnl for t in _r_off.trades if t.reason == "KILL")
     lines.append(
-        "**2. The drawdown kill switch was the single largest source of loss, while wearing the "
-        "label 'risk control'.** It was originally a hardcoded 20%. But holding up to 50% of "
-        "equity in an asset that routinely falls 40-50% makes a >20% equity drawdown "
-        "*structurally normal* -- so the switch was not detecting an abnormal loss, it was firing "
-        "on the strategy working as designed, at local bottoms, at taker prices. It realised "
-        "-8,733 USDT on a 10,000 USDT account. Deriving it instead as "
-        "`clamp(cap_range * asset_max_dd, 0.15, 0.50)` = 35% moved the same configuration from "
-        "-7.15% to +33.86%. A threshold with units of percent is not a risk control until you can "
-        "say what it is a threshold *of*."
+        f"**2. A hardcoded drawdown kill switch was a large source of loss while wearing the label "
+        f"'risk control'.** It was originally a flat 20%. But holding up to "
+        f"{100 * base.cap_range:.0f}% of equity in an asset that routinely falls 40-50% makes a "
+        f">20% equity drawdown *structurally normal*, so the switch was not detecting an abnormal "
+        f"loss -- it fired on the strategy working as designed, at local bottoms, at taker prices. "
+        f"At a 20% threshold the kill path realised **{kills_20:,.0f} USDT** on a "
+        f"{base.initial_equity:,.0f} USDT account and the full run returned "
+        f"**{pct(m_k20.total_return)}**. Deriving the threshold as "
+        f"`clamp(cap_range x asset_max_dd, 0.15, 0.50)` = **{100 * base.dd_kill:.0f}%** leaves "
+        f"{kills_derived:,.0f} USDT realised on that path and **{pct(m_off.total_return)}** "
+        f"overall. A threshold with units of percent is not a risk control until you can say what "
+        f"it is a threshold *of*."
     )
     lines.append("")
+
+    # Finding 3 -- lot ordering, measured where it actually bites
+    _r_hi, m_hi = full_run(active_derisk=True, derisk_highest_cost_first=True)
+    _r_lo, m_lo = full_run(active_derisk=True, derisk_highest_cost_first=False)
     lines.append(
-        "**3. 'Sell the worst lots first' is backwards.** Dumping highest-cost-basis lots removes "
-        "the positions furthest from their exits, which is the intuitive choice and the one we "
-        "implemented first. Lowest-cost-first realises a smaller loss and leaves the deep lots to "
-        "recover: +8.2% against -3.4% on the full run. (Moot in the shipped default, which does "
-        "not force-sell at all, but it governs the kill-switch liquidation path.)"
+        f"**3. 'Sell the worst lots first' is backwards.** Dumping highest-cost-basis lots removes "
+        f"the positions furthest from their exits, which is the intuitive choice and the one we "
+        f"implemented first. Lowest-cost-first realises a smaller loss and leaves the deep lots to "
+        f"recover: **{pct(m_lo.total_return)}** against **{pct(m_hi.total_return)}** on the full "
+        f"run with forced de-risking enabled. The shipped default does not force-sell, so this "
+        f"governs only the drawdown-kill liquidation path -- which now honours the same setting "
+        f"rather than hardcoding the rejected ordering, as it did until an audit caught it."
     )
     lines.append("")
     lines.append(
@@ -440,7 +474,9 @@ def sensitivity(daily, execution, hourly, base: Config) -> str:
 
     window_names = [w for w in WINDOWS if w[0] != "full-2019-2026"]
 
-    def sweep(values, make_cfg):
+    per_window: dict = {}
+
+    def sweep(values, make_cfg, key=None):
         out = []
         for v in values:
             cfg = make_cfg(v)
@@ -454,6 +490,9 @@ def sensitivity(daily, execution, hourly, base: Config) -> str:
                 fees.append(m.fees_paid)
                 if m.fee_drag == m.fee_drag:
                     drags.append(m.fee_drag)
+            if key:
+                per_window.setdefault(key, {})[v] = list(rets)
+                per_window.setdefault(key + ":drag", {})[v] = list(drags)
             out.append(
                 (v, float(np.mean(rets)), float(np.mean(dds)), int(np.median(rts)),
                  float(np.mean(drags)) if drags else float("nan"), float(np.mean(fees)))
@@ -478,15 +517,56 @@ def sensitivity(daily, execution, hourly, base: Config) -> str:
 
     lines.append("## 1. `k_spacing` -- tests the fee-floor thesis")
     lines.append("")
+    k_values = [0.25, 0.35, 0.50, 0.75, 1.00, 1.50, 2.00]
     lines.append("| K | Mean return | Mean max DD | Median round trips | Fee drag | Mean fees (USDT) |")
     lines.append("|---:|---:|---:|---:|---:|---:|")
-    for v, r, d, rt, dg, fe in sweep([0.25, 0.35, 0.50, 0.75, 1.00, 1.50, 2.00], lambda v: base.with_(k_spacing=v)):
+    for v, r, d, rt, dg, fe in sweep(k_values, lambda v: base.with_(k_spacing=v), key="K"):
         star = " **(default)**" if abs(v - base.k_spacing) < 1e-9 else ""
         lines.append(f"| {v:.2f}{star} | {pct(r)} | {upct(d)} | {rt} | {upct(dg,1)} | {fe:.0f} |")
     lines.append("")
+
+    # Per-window decomposition, and an HONEST monotonicity count. An earlier
+    # draft of this file asserted in prose that return was "monotone in all six
+    # windows individually". An external audit checked, and it is not. The claim
+    # is now computed and the table published, because a justification for moving
+    # a default is worthless if nobody can check it.
+    lines.append("### Per-window decomposition, and how monotone this actually is")
+    lines.append("")
+    lines.append("| Window | " + " | ".join(f"K={v:.2f}" for v in k_values) + " | Monotone? |")
+    lines.append("|---|" + "---:|" * len(k_values) + "---|")
+    monotone_count = 0
+    for i, (name, _s, _e, _n) in enumerate(window_names):
+        row = [per_window["K"][v][i] for v in k_values]
+        is_mono = all(b >= a - 1e-12 for a, b in zip(row, row[1:]))
+        monotone_count += int(is_mono)
+        lines.append(
+            f"| `{name}` | " + " | ".join(pct(x) for x in row) + f" | {'yes' if is_mono else '**no**'} |"
+        )
+    means = [float(np.mean([per_window["K"][v][i] for i in range(len(window_names))])) for v in k_values]
+    mean_mono = all(b >= a - 1e-12 for a, b in zip(means, means[1:]))
     lines.append(
-        "Monotone in all six windows individually, not just on average. Fee drag is the mechanism: "
-        "a tighter grid fills more often and hands the difference to the exchange."
+        f"| **mean** | " + " | ".join(pct(x) for x in means) + f" | {'yes' if mean_mono else '**no**'} |"
+    )
+    lines.append("")
+    drag_mono = 0
+    for i in range(len(window_names)):
+        drow = [per_window["K:drag"][v][i] for v in k_values if i < len(per_window["K:drag"][v])]
+        if len(drow) == len(k_values) and all(b <= a + 1e-12 for a, b in zip(drow, drow[1:])):
+            drag_mono += 1
+    lines.append(
+        f"**{monotone_count} of {len(window_names)} windows are individually monotone in K**, and "
+        f"the mean is {'monotone' if mean_mono else 'not monotone across the full sweep either'}. "
+        f"The honest statement is therefore weaker than 'monotone everywhere': widening K improves "
+        f"the *average* result, but individual windows disagree, and `bull-2020Q4` is actively "
+        f"better at a tighter setting than the one we ship."
+    )
+    lines.append("")
+    lines.append(
+        f"What does hold universally is the **cost mechanism**: fee drag falls monotonically with K "
+        f"in **{drag_mono} of {len(window_names)}** windows. That is the part of the argument the "
+        f"default rests on -- a tighter grid fills more often and hands the difference to the "
+        f"exchange -- and it is why the default moved to K = 1.00 despite the return ordering being "
+        f"messier than we first claimed."
     )
     lines.append("")
 

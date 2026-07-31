@@ -234,13 +234,50 @@ def test_github_link_is_present_and_public_looking(text):
 
 
 def test_reported_numbers_agree_with_generated_results(text):
-    """Any headline figure in SKILL.md must trace to results/RESULTS.md."""
+    """Headline figures cited in SKILL.md must match results/RESULTS.md after rounding.
+
+    Substring matching is not enough here: SKILL.md rounds to one decimal
+    ("41.9%") while the generated report carries two ("41.86%"), so the check has
+    to parse both and compare numerically.
+    """
+    results = ROOT / "results" / "RESULTS.md"
+    if not results.exists():
+        pytest.skip("results/RESULTS.md not generated yet — run `python run_backtest.py --all`")
+    generated = results.read_text(encoding="utf-8")
+
+    row = re.search(r"\|\s*`full-2019-2026`\s*\|(.+)$", generated, flags=re.MULTILINE)
+    assert row, "full-run row missing from RESULTS.md"
+    cells = [c.strip().strip("*` ") for c in row.group(1).split("|")]
+    nums = [float(c.rstrip("%").replace("+", "").replace(",", "")) for c in cells[:5]]
+    full_return, full_dd, bh_return = nums[0], nums[1], nums[2]
+
+    skill = flat(text)
+    for label, value in (("return", full_return), ("drawdown", full_dd), ("buy-and-hold", bh_return)):
+        rounded = f"{abs(value):,.1f}"
+        assert rounded in skill.replace("−", "-"), (
+            f"SKILL.md does not cite the generated full-run {label} ({rounded})"
+        )
+
+
+def test_readme_headline_table_matches_generated_results():
+    """The README's results table is transcribed by hand; pin it to the artifact."""
     results = ROOT / "results" / "RESULTS.md"
     if not results.exists():
         pytest.skip("results/RESULTS.md not generated yet")
     generated = results.read_text(encoding="utf-8")
-    for claim in ("+52.7", "39.9", "1,598.9"):
-        stripped = claim.replace(",", "").lstrip("+")
-        assert stripped[:4] in generated.replace(",", ""), (
-            f"SKILL.md cites {claim} but it does not appear in results/RESULTS.md"
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+
+    for window in ("bear-2022", "range-2023", "bull-2020Q4", "flat-2024-26",
+                   "year-2025", "chop-2019H2", "full-2019-2026"):
+        pattern = rf"\|\s*\**`{re.escape(window)}`\**\s*\|(.+)$"
+        gen_row = re.search(pattern, generated, flags=re.MULTILINE)
+        rd_row = re.search(pattern, readme, flags=re.MULTILINE)
+        assert gen_row and rd_row, f"{window} row missing"
+
+        def first_two(match):
+            cells = [c.strip().strip("*` ") for c in match.group(1).split("|")][:2]
+            return [round(float(c.rstrip("%").replace("+", "").replace("−", "-")), 2) for c in cells]
+
+        assert first_two(gen_row) == first_two(rd_row), (
+            f"README row for {window} disagrees with results/RESULTS.md"
         )

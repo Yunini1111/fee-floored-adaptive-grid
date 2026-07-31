@@ -85,8 +85,28 @@ def spacing_floor(fee: float, target_edge: float) -> float:
         s_floor = (2f + e) / (1 - f)
 
     At f = 0.0010, e = 0.0015 this is 0.35035%, rounded up to 0.35%.
+
+    Callers should pass the WORST fee they can be charged, not the maker rate.
+    See `worst_case_round_trip` for why.
     """
     return (2.0 * fee + target_edge) / (1.0 - fee)
+
+
+def worst_case_round_trip(s: float, taker_fee: float, slippage: float) -> float:
+    """Net return of the worst round trip the engine can actually produce.
+
+    The "every round trip is net-positive" guarantee is usually stated against
+    the maker fee, which is not sufficient. A resting order whose bar OPENS
+    through it would have been rejected as post-only, so the engine fills it at
+    the taker fee with adverse slippage (rule F6). Both legs can be taker:
+
+        net = (1+s)(1-slip)(1-f_t) - (1+slip)(1+f_t)
+
+    On a venue with maker 0.10% and taker 0.20%, a round trip at a floor derived
+    from the maker rate alone is NEGATIVE. The guarantee therefore has to be
+    stated against `max(maker, taker)`, and `Config.validate` asserts it.
+    """
+    return (1.0 + s) * (1.0 - slippage) * (1.0 - taker_fee) - (1.0 + slippage) * (1.0 + taker_fee)
 
 
 # --------------------------------------------------------------------------- #
@@ -226,8 +246,13 @@ class Config:
     active_derisk: bool = False
 
     @property
+    def worst_fee(self) -> float:
+        """The highest fee a single leg can be charged. F6 can make either leg taker."""
+        return max(self.maker_fee, self.taker_fee)
+
+    @property
     def s_floor(self) -> float:
-        return spacing_floor(self.maker_fee, self.target_edge)
+        return spacing_floor(self.worst_fee, self.target_edge)
 
     @property
     def dd_kill(self) -> float:
@@ -259,7 +284,7 @@ class Config:
 
     @property
     def breakeven(self) -> float:
-        return breakeven_spacing(self.maker_fee)
+        return breakeven_spacing(self.worst_fee)
 
     def cap_for(self, regime: Regime) -> float:
         if not self.regime_gate:
@@ -284,8 +309,17 @@ class Config:
             raise ValueError(
                 f"s_cap {self.s_cap:.5f} <= s_floor {self.s_floor:.5f}: no spacing is legal"
             )
-        if net_edge_per_round_trip(self.s_floor, self.maker_fee) <= 0:
+        if net_edge_per_round_trip(self.s_floor, self.worst_fee) <= 0:
             raise ValueError("s_floor does not clear the fee hurdle -- check the algebra")
+        # The invariant must hold against the WORST fill the engine can produce
+        # (F6: both legs taker, adverse slippage), not just the maker case.
+        worst = worst_case_round_trip(self.s_floor, self.taker_fee, self.taker_slippage)
+        if worst <= 0:
+            raise ValueError(
+                f"at s_floor={self.s_floor:.6f} the worst-case round trip is {worst:+.6f}: "
+                f"taker_fee={self.taker_fee} with {self.taker_slippage} slippage breaks the "
+                f"net-positive guarantee. Raise target_edge or lower the fee assumption."
+            )
         if self.n_levels < 1:
             raise ValueError("n_levels must be >= 1")
         if not 0 < self.cap_absolute <= 1:

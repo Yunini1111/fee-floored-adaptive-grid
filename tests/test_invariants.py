@@ -87,10 +87,39 @@ def test_no_exit_is_ever_priced_below_its_own_entry(full_run):
 
 
 def test_inventory_cap_is_never_breached_by_our_own_action(full_run):
-    """R1. Mark-to-market drift above the cap is expected and counted separately."""
+    """R1, evaluated on decision-time prices.
+
+    The gate and this counter both use the bar's OPEN for existing inventory and
+    the fill price for the new lot. Neither reads the bar's close, which has not
+    happened at the moment of the decision -- an earlier version did, which made
+    a zero here circular rather than meaningful.
+    """
     result, metrics, _ = full_run
     assert result.cap_breaches == 0
     assert metrics.cap_breaches == 0
+
+
+def test_mark_drift_above_the_cap_is_reported_and_non_zero(full_run):
+    """The honest other half. If this were also zero, the cap would be being
+    enforced with hindsight rather than by refusing trades."""
+    result, metrics, _ = full_run
+    assert result.bars_above_cap > 0
+    assert 0.0 < metrics.bars_above_cap_pct < 1.0
+
+
+def test_kill_switch_honours_the_lot_ordering_setting(market):
+    """The kill path used to hardcode highest-cost-first while the write-up said
+    the flag governed it. Both orderings must now be reachable."""
+    daily, execution = market
+    sub = execution.slice_ms(iso_to_ms("2021-11-01"), iso_to_ms("2022-12-01"))
+    orders = {}
+    for highest_first in (True, False):
+        cfg = Config(derisk_highest_cost_first=highest_first, dd_kill_override=0.12)
+        result = run_backtest(sub, daily, cfg, label="kill")
+        kills = [t for t in result.trades if t.reason == "KILL"]
+        orders[highest_first] = [t.lot_id for t in kills]
+    assert orders[True], "no kill fired; test is vacuous"
+    assert orders[True] != orders[False]
 
 
 def test_inventory_never_exceeds_the_absolute_ceiling_by_more_than_drift(full_run):
