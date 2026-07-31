@@ -1,0 +1,18 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+env/
+.DS_Store
+.idea/
+.vscode/
+
+# Local working notes, not part of the submission.
+STATUS.md
+
+# Cached raw CoinW responses. The manifest IS committed, so the provenance and
+# SHA-256 of every byte the results were computed from is in version control,
+# while ~90 MB of klines is not. `python run_backtest.py --all` refetches them.
+data/*.json
+!data/manifest.json

@@ -1,0 +1,9 @@
+# Pinned to the versions this study was actually run and tested with.
+# Deliberately minimal: no pandas, no TA-Lib, no backtesting framework, so that
+# every indicator and every fill rule can be audited in this repository alone.
+requests==2.32.5
+numpy==2.4.3
+matplotlib==3.11.1
+
+# Test-only
+pytest==9.0.3
