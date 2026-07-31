@@ -128,8 +128,16 @@ class BacktestResult:
     derisk_pnl: float = 0.0
     gross_spread_capture: float = 0.0  # sum of qty*(exit-entry) over closed round trips
     round_trip_fees: float = 0.0  # both legs of those same round trips
-    cap_breaches: int = 0  # breaches CAUSED BY OUR OWN ACTIONS -- must be 0
+    # cap_breaches is NOT filled in by the gate. Re-testing the gate's own
+    # expression a few lines after the gate is a tautology: same variables, same
+    # comparison, so it can never fire and reporting it as a check is theatre.
+    # It is computed after the run by `metrics.verify_cap_compliance`, which
+    # replays the trade log from scratch and can therefore actually fail.
+    cap_breaches: int = 0
     bars_above_cap: int = 0  # bars above cap from mark drift alone -- informational
+    # (bar_ts, lot_id, bar_open, cap_in_force) for every buy, so the replay can
+    # reconstruct the decision-time state without trusting the engine's own maths.
+    cap_context: list = field(default_factory=list)
     holding_hours: list[float] = field(default_factory=list)
     killed: bool = False
     kill_ts: int | None = None
@@ -469,11 +477,7 @@ def run_backtest(
                 )
                 lots.append(new_lot)
                 opened_this_bar.append(new_lot)
-
-                # R1 self-check, on the same decision-time information the gate
-                # used. This must never fire; if it does, the gate is broken.
-                if post_equity > 0 and post_inventory > signal.inventory_cap * post_equity * (1 + 1e-9):
-                    out.cap_breaches += 1
+                out.cap_context.append((bar_ts, next_lot_id, bar_open, signal.inventory_cap))
                 out.trades.append(
                     Trade(
                         ts=bar_ts,

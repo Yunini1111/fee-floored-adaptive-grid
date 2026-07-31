@@ -29,7 +29,7 @@ When a buy fills, its sell price is fixed at `fill_price × (1 + s_at_fill)` and
 re-priced**. Re-anchoring the grid moves only where *new* buys go. This makes "every completed round
 trip is net-positive" a structural guarantee rather than a hope — and `tests/test_invariants.py`
 asserts it across all 408 round trips of the full run. The ablation that lets exits float with the
-grid produces **295 losing round trips** and turns +39.9% into **−37.6%**.
+grid produces **154 losing round trips** on that same run, and turns +39.9% into **−37.6%**.
 
 **3. The volatility input has no rescaling step.**
 CoinW serves native daily candles, so daily ATR is read directly. Converting volatility from bars of
@@ -75,8 +75,8 @@ of the same gate — refusing to add new buys in a downtrend — worth **16.2 po
 do not panic-sell.**
 
 **A hardcoded drawdown kill switch was a large source of loss, while wearing the label "risk
-control".** It was originally a flat 20%. But holding up to 50% of equity in an asset that routinely
-falls 40-50% makes a >20% equity drawdown *structurally normal*, so the switch fired on the strategy
+control".** It was originally a flat 20%. But holding up to 50% of equity in an asset whose own worst drawdown
+over this dataset is 77.2% makes a >20% equity drawdown *structurally normal*, so the switch fired on the strategy
 working as designed, at local bottoms, at taker prices — realising **−9,955 USDT** on a 10,000 USDT
 account, with the full run returning +15.3%. Deriving it as
 `clamp(cap_range × asset_max_dd, 0.15, 0.50)` = 35% leaves −3,204 USDT on that path and **+56.1%**
@@ -120,7 +120,7 @@ no further network call, and the manifest lets you confirm you have the same byt
 python -m pytest tests/ -v
 ```
 
-106 tests covering the fee algebra, indicator definitions against hand-computed fixtures, every fill
+107 tests covering the fee algebra, indicator definitions against hand-computed fixtures, every fill
 rule, the no-look-ahead property, and the structural invariants. **18 of them exercise the real
 CoinW dataset and will skip until `run_backtest.py --all` has been run once** — including the ones
 that assert the net-positive round-trip guarantee, so run it before judging that claim.
@@ -164,7 +164,7 @@ grid/
   strategy.py             geometry, fee floor, regime gate, sizing, risk overlay
   engine.py               bar loop, per-lot ledger, fill model
   metrics.py              metrics and the exposure-matched benchmark
-tests/                    106 tests
+tests/                    107 tests
 data/                     cached raw CoinW responses + SHA-256 manifest
 results/                  generated: RESULTS.md, sensitivity.md, trades.csv, 3 charts
 ```
@@ -253,7 +253,7 @@ Skill 本體是 [`SKILL.md`](SKILL.md)，這個倉庫的其他內容都是為了
 買單成交時，它的賣出價就固定在 `成交價 × (1 + 當下間距)`，**永遠不會被重新定價**。
 重新錨定網格只會改變「新的買單掛在哪」。這讓「每一次完成的來回都是淨賺」成為結構性保證，
 而不是期望——`tests/test_invariants.py` 針對完整回測的全部 408 次來回做了斷言。
-對照組（讓出場價隨網格浮動）產生了 **295 次虧損的來回**，並把 +39.9% 變成 **−37.6%**。
+對照組（讓出場價隨網格浮動）在同一段期間產生了 **154 次虧損的來回**，並把 +39.9% 變成 **−37.6%**。
 
 **3. 波動率計算沒有任何換算步驟。**
 CoinW 直接提供原生日線，所以日 ATR 是直接讀出來的。把長度 `D` 的 K 線波動率換算到 `H` 期間需要
@@ -289,7 +289,7 @@ CoinW `BTC_USDT` 現貨，15 分鐘執行 K 線，maker = taker = 0.10%，初始
 **停止加碼，但不要恐慌性賣出。**
 
 **回撤斷路器曾經是最大的虧損來源，卻掛著「風控」的名字。** 它原本寫死在 20%。
-但持有最多 50% 權益在一個經常下跌 40-50% 的資產上，**超過 20% 的權益回撤本來就是結構性正常的**——
+但持有最多 50% 權益在一個「自身最大回撤達 77.2%」的資產上，**超過 20% 的權益回撤本來就是結構性正常的**——
 所以這個開關偵測到的不是異常，而是策略正常運作，並且總是在局部底部、用 taker 價格觸發，
 在 10,000 USDT 的帳戶上實現了 **−9,955 USDT** 的虧損，完整回測報酬只有 +15.3%。改成推導式的
 `clamp(cap_range × asset_max_dd, 0.15, 0.50)` = 35% 之後，同一路徑只實現 −3,204 USDT，整體變成 **+56.1%**。
@@ -319,7 +319,7 @@ SHA-256 與抓取時間），**第一次執行需要網路**。跑過一次 `--a
 python -m pytest tests/ -v
 ```
 
-106 個測試，涵蓋手續費代數、指標定義（對照手算基準）、每一條成交規則、無未來函數性質，以及結構性不變量。
+107 個測試，涵蓋手續費代數、指標定義（對照手算基準）、每一條成交規則、無未來函數性質，以及結構性不變量。
 其中 18 個會使用真實 CoinW 資料，在你跑過一次 `run_backtest.py --all` 之前會 skip。
 
 ## 風險聲明

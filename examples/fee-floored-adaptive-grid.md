@@ -19,15 +19,19 @@ mechanically verifiable rather than statistical.
 - **Exits belong to lots, not to the grid.** A lot's sell price is fixed at fill time and never
   re-priced, so every completed round trip is net-positive by construction.
 - **The regime gate stops adding, it does not force-sell.** Refusing to buy in a downtrend is worth
-  +18 points over the full backtest; force-selling into that same downtrend costs 44.
+  double-digit percentage points over the full backtest; force-selling into that same downtrend
+  costs more still. Current figures: [`../results/RESULTS.md`](../results/RESULTS.md) section 5a.
 
 ## Suggested Use
 
 Range-bound, choppy and declining spot markets, on capital the operator can afford to lose in full.
 
-It is **not** suitable as a way to outperform holding the asset in a trending market: over the full
-2019-2026 backtest it returned +52.7% against +1,598.9% for buy-and-hold, with a 39.9% maximum
-drawdown against 77.2%. The trade being offered is capped upside for roughly half the drawdown.
+It is **not** suitable as a way to outperform holding the asset in a trending market. Over the full
+2019-2026 backtest it is beaten badly by buy-and-hold on return, while running roughly half the
+maximum drawdown. The trade being offered is capped upside for materially less drawdown. Headline
+figures are in [`../README.md`](../README.md) and
+[`../results/RESULTS.md`](../results/RESULTS.md) — deliberately not duplicated here, because a
+hand-copied number in a secondary file is exactly what goes stale.
 
 ## Important Notice
 

@@ -155,18 +155,23 @@ class Config:
     # --- spacing ---
     # K = 1.00 means "space the grid one average daily range apart".
     #
-    # The first version of this strategy used K = 0.50. The sweep in
-    # results/sensitivity.md shows return is monotonically improving in K across
-    # ALL SIX tested windows -- not one disagrees -- and the mechanism is the one
-    # this whole strategy is built around: fee drag falls from 19.8% of gross
-    # capture at K=0.25 to 4.8% at K=1.00. Tighter grids fill more often and hand
-    # the difference to the exchange. This is a mechanism, not a curve fit, which
-    # is why the default moved.
+    # The first version used K = 0.50, and was moved on the strength of a claim
+    # that return improves monotonically in K across all six test windows. That
+    # claim was WRONG -- an audit checked the per-window decomposition and only
+    # two of the six are monotone; bull-2020Q4 is actively better at a tighter
+    # setting. What does hold in all six is the cost mechanism this strategy is
+    # built around: fee drag falls monotonically as spacing widens, because a
+    # tighter grid fills more often and hands the difference to the exchange.
+    # The default rests on that, and on nothing else.
+    #
+    # Current numbers are computed into results/sensitivity.md rather than quoted
+    # here, so that this comment cannot go stale again.
     k_spacing: float = 1.00
-    # s_cap = 0.08 binds on ~8% of days. At the old 0.03 it bound on 79.7% of
-    # days, which would have made the "volatility-adaptive" claim decorative --
-    # the spacing would simply have been a constant 3%. A cap that never binds is
-    # decoration; a cap that always binds means the estimator is being ignored.
+    # A cap that never binds is decoration; a cap that always binds means the
+    # estimator is being ignored. At the old 0.03 the cap bound on roughly four
+    # days in five, which would have made the "volatility-adaptive" claim
+    # decorative -- the spacing would simply have been a constant 3%. At 0.08 it
+    # binds on well under a tenth of days.
     s_cap: float = 0.080
 
     # --- geometry ---
@@ -212,11 +217,11 @@ class Config:
     derisk_persistence_days: int = 0  # consecutive DOWNTREND days required first
     derisk_max_fraction: float = 1.0  # max fraction of the excess sold per day
     # Which lots to dump. Highest-cost-first removes the lots furthest from their
-    # exits; lowest-cost-first realises the smallest loss and leaves the deep lots
-    # to recover. These are opposite intuitions and only measurement settles it:
-    # over the full 2019-2026 run, lowest-cost-first returns +8.2% against -3.4%
-    # for highest-cost-first, because the de-risk leg is where this strategy does
-    # most of its realised damage. The intuitive choice was the wrong one.
+    # exits; lowest-cost-first realises a smaller loss on each sale and leaves the
+    # deep lots to recover. These are opposite intuitions and only measurement
+    # settles it: with forced de-risking enabled, lowest-cost-first returns
+    # materially more over the full run. The intuitive choice was the wrong one.
+    # Current figures: results/RESULTS.md section 5a.
     derisk_highest_cost_first: bool = False
 
     # --- exchange constraints (VERIFIED returnSymbol, BTC_USDT) ---
@@ -237,12 +242,12 @@ class Config:
     paired_exits: bool = True  # False = exits float with the grid (the broken design)
     regime_gate: bool = True  # False = one static inventory cap
     # active_derisk force-SELLS inventory down to the regime cap when the regime
-    # turns down. It sounds right and it measures wrong: over the full 2019-2026
-    # run it costs 44 percentage points (+52.7% -> +8.8%), because selling into
-    # weakness at taker prices and rebuying when the regime flips back is a
-    # systematic wealth transfer. Blocking NEW buys in a downtrend is worth +18
-    # points; force-selling existing inventory is not. Shipped OFF, kept as a
-    # switch so the measurement in results/RESULTS.md can be reproduced.
+    # turns down. It sounds right and it measures wrong: over the full run it
+    # costs tens of percentage points, because selling into weakness at taker
+    # prices and rebuying when the regime flips back is a systematic wealth
+    # transfer. Blocking NEW buys in a downtrend is worth a lot; force-selling
+    # existing inventory is not. Shipped OFF, kept as a switch so the measurement
+    # in results/RESULTS.md section 5a can be reproduced.
     active_derisk: bool = False
 
     @property
@@ -272,11 +277,14 @@ class Config:
         at the worst possible moment, liquidating into weakness at taker prices.
 
         This is not hypothetical. The first version of this strategy used a
-        hardcoded 20%. Over 2019-2026 that kill switch fired repeatedly and
-        realised -8,733 USDT on a 10,000 USDT account; raising the threshold so it
-        only fires on genuinely abnormal losses moved the same configuration from
-        -7.15% to +33.86%. It was the single largest source of loss in the study,
-        and it was wearing the label "risk control".
+        hardcoded 20%. Over 2019-2026 that kill switch fired repeatedly, realised
+        a five-figure loss on a 10,000 USDT account, and cost tens of percentage
+        points against a threshold derived from the cap it exists to protect. It
+        was a large source of loss in the study, and it was wearing the label
+        "risk control".
+
+        Current figures are computed into results/RESULTS.md section 5a rather
+        than quoted here, so this docstring cannot go stale.
         """
         if self.dd_kill_override is not None:
             return self.dd_kill_override

@@ -170,16 +170,18 @@ def path_length_section(client: CoinWClient, offline: bool) -> str:
     lines.append("F5  fill price is always the limit price -- never improved, even on a gap")
     lines.append("F6  if the bar OPENS through our limit, a post-only order would have")
     lines.append("    been rejected -> fill at p but charge the TAKER fee")
-    lines.append("F7  one fill per level per bar")
-    lines.append("F8  de-risk sales execute at the bar CLOSE with taker fee, never the high")
+    lines.append("F7  one fill per level per UTC DAY -- the ladder refreshes once daily and a")
+    lines.append("    level that fills is not re-armed until the next rollover")
+    lines.append("F8  forced sales price at a CLOSE, never a high: regime de-risking at the last")
+    lines.append("    close known at the 00:00 rollover, the kill at the current bar's close")
     lines.append("F9  0bp slippage on maker fills, 5bp adverse on taker fills")
     lines.append("```")
     lines.append("")
     lines.append(
         "**Residual optimism, disclosed:** even with F3's through-buffer the model assumes we "
         "are at the front of the queue at every price we trade through. On a thin book that is "
-        "generous. Section 7 reruns everything at `fill_probability` 1.0 / 0.7 / 0.5 to price "
-        "that assumption instead of hiding it."
+        "generous. `results/sensitivity.md` section 4 reruns everything at `fill_probability` "
+        "1.0 / 0.7 / 0.5 to price that assumption instead of hiding it."
     )
     lines.append("")
     return "\n".join(lines)
@@ -208,7 +210,7 @@ def run_windows(daily, execution, hourly, cfg: Config, names: list[str] | None =
 def headline_section(rows) -> str:
     lines = ["## 3. Headline results", ""]
     lines.append(
-        "Every tested window is here, including the two where the strategy is beaten badly. "
+        "Every tested window is here, including every one where the strategy is beaten. "
         "Reporting only the flattering window is the most common backtest dishonesty and "
         "publishing all of them is cheap insurance against the accusation."
     )
@@ -224,10 +226,14 @@ def headline_section(rows) -> str:
             f"{upct(m.avg_inventory_ratio,1)} | {m.round_trips} | {m.sharpe:.2f} | {m.calmar:.2f} |"
         )
     lines.append("")
+    invs = [m.avg_inventory_ratio for *_x, m, _y in rows]
     lines.append(
-        "**Exposure-matched buy & hold is the fair comparison.** This strategy runs roughly "
-        "15-25% average inventory; measuring it against 100%-long BTC compares two different "
-        "amounts of risk. Both are shown, always."
+        f"**Exposure-matched buy & hold is the fair comparison.** This strategy runs "
+        f"{upct(float(np.mean(invs)),0)} average inventory across these windows "
+        f"({upct(min(invs),0)} to {upct(max(invs),0)}); measuring it against 100%-long BTC compares "
+        f"two different amounts of risk. Both are shown, always. Note the benchmark is only "
+        f"exposure-matched at t=0 -- it never trims, so its exposure drifts upward as BTC rises, "
+        f"which makes it harder to beat, not easier."
     )
     lines.append("")
 
@@ -306,13 +312,13 @@ def chain_section(daily, execution, hourly, base: Config) -> str:
     )
     lines.append("")
     lines.append(
-        "| Variant | Sub-window mean return | Sub-window mean DD | Full-run return | Full-run DD | Losing round trips | Mean fee drag |"
+        "| Variant | Sub-window mean return | Sub-window mean DD | Full-run return | Full-run DD | Full-run round trips | Full-run losing round trips | Mean fee drag |"
     )
-    lines.append("|---|---:|---:|---:|---:|---:|---:|")
+    lines.append("|---|---:|---:|---:|---:|---:|---:|---:|")
 
     full = execution
     for vname, vcfg in variants:
-        rets, dds, losers, drags = [], [], 0, []
+        rets, dds, drags = [], [], []
         for name, start, end, _ in WINDOWS:
             if name not in window_names:
                 continue
@@ -320,15 +326,18 @@ def chain_section(daily, execution, hourly, base: Config) -> str:
             m = compute_metrics(run_backtest(sub, daily, vcfg, label=name, hourly=hourly), sub)
             rets.append(m.total_return)
             dds.append(m.max_dd)
-            losers += m.losing_round_trips
             if m.fee_drag == m.fee_drag:
                 drags.append(m.fee_drag)
         mf = compute_metrics(run_backtest(full, daily, vcfg, label="full", hourly=hourly), full)
-        losers += mf.losing_round_trips
+        # Round-trip counts are reported for the FULL RUN ONLY. The six
+        # sub-windows all sit inside it, so adding them to the full run would
+        # count the same trades roughly twice -- an earlier version of this table
+        # did exactly that and reported 295 losing round trips where the full run
+        # has 154.
         lines.append(
             f"| {vname} | {pct(float(np.mean(rets)))} | {upct(float(np.mean(dds)))} | "
-            f"**{pct(mf.total_return)}** | {upct(mf.max_dd)} | **{losers}** | "
-            f"{upct(float(np.mean(drags)),1)} |"
+            f"**{pct(mf.total_return)}** | {upct(mf.max_dd)} | {mf.round_trips} | "
+            f"**{mf.losing_round_trips}** | {upct(float(np.mean(drags)),1)} |"
         )
 
     lines.append("")
@@ -388,7 +397,8 @@ def chain_section(daily, execution, hourly, base: Config) -> str:
     lines.append(
         f"**2. A hardcoded drawdown kill switch was a large source of loss while wearing the label "
         f"'risk control'.** It was originally a flat 20%. But holding up to "
-        f"{100 * base.cap_range:.0f}% of equity in an asset that routinely falls 40-50% makes a "
+        f"{100 * base.cap_range:.0f}% of equity in an asset whose own worst drawdown in this "
+        f"dataset is {upct(m_off.bh_max_dd,0)} makes a "
         f">20% equity drawdown *structurally normal*, so the switch was not detecting an abnormal "
         f"loss -- it fired on the strategy working as designed, at local bottoms, at taker prices. "
         f"At a 20% threshold the kill path realised **{kills_20:,.0f} USDT** on a "
@@ -510,8 +520,10 @@ def sensitivity(daily, execution, hourly, base: Config) -> str:
         "**Overfitting discipline.** These sweeps are published to show the *shape of the surface*, "
         "not to select a point on it. Defaults come from published convention (ADX 25, EMA 50/200, "
         "ATR 14, Donchian 20) or from a stated mechanism. Where a default did move -- `K` from 0.50 "
-        "to 1.00 -- it moved because the change is monotone across all six windows AND has a named "
-        "cause (fee drag), not because one window looked better."
+        "to 1.00 -- it moved because it has a named cause, fee drag, which falls monotonically in "
+        "every window. It did NOT move because return is monotone: it is not, in four of the six "
+        "windows, and section 1 below publishes that decomposition rather than the earlier and "
+        "incorrect claim that all six agreed."
     )
     lines.append("")
 

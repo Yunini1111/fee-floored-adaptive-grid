@@ -4,7 +4,7 @@ description: >
   Submission for the CWC AI Trading Skill Challenge.
   This Skill defines a spot grid strategy whose level spacing is derived from measured volatility
   and floored by the exchange fee, so that every completed round trip is net-positive by
-  construction. It ships with a reproducible backtest on nine years of CoinW BTC_USDT data,
+  construction. It ships with a reproducible backtest on eight years of CoinW BTC_USDT data,
   including the windows where the strategy loses.
 ---
 
@@ -27,8 +27,9 @@ below a volatility-scaled anchor and pairs each filled lot with its own sell ord
 oscillation as realised cash flow.
 
 Two properties separate it from a conventional grid. First, **the spacing is floored by the fee**:
-the minimum spacing is derived from the exchange's maker rate rather than chosen, so no level can
-be placed that loses money on a completed round trip. Second, **exits are attached to lots, not to
+the minimum spacing is derived from the exchange's fee schedule rather than chosen — from
+`max(maker, taker)`, because a gap-through fill is charged as taker — so no level can be placed
+that loses money on a completed round trip. Second, **exits are attached to lots, not to
 the grid**: when a lot fills, its sell price is fixed at that moment and is never re-priced, even
 when the grid re-anchors. A grid that instead derives exits from a moving anchor will sell a lot
 bought at a deep level into a lower grid, at a loss, while still reporting positive gross profit.
@@ -61,7 +62,7 @@ Signal source (all from daily bars strictly <= D-1; nothing reads the day it gov
   DC_high, DC_low = Donchian(20)        range-break invalidation
 
 Spacing, floored by the fee:
-  f        = maker fee = 0.0010          (CoinW spot base rate)
+  f        = max(maker, taker) = 0.0010  (CoinW spot base rate; a gap-through leg pays taker)
   s_floor  = (2f + e) / (1 - f) = 0.35%  e = 0.0015 required net edge
   s        = clamp(K * atr_pct, s_floor, 8.00%)     K = 1.00
   -> net profit per round trip = s - f*(2+s), positive for all s > 2f/(1-f) = 0.2002%
@@ -167,10 +168,10 @@ safety unless a human intervenes.
 | `s_cap` | 8.00% | Maximum spacing | Binds ~8% of days. At 3% it bound 80% of days and made adaptation decorative |
 | `n_levels` | 6 | Buy levels per side | Range half-width ≈ `N × K × atr_pct` ≈ ±25% at median volatility |
 | `maker_fee` / `taker_fee` | 0.0010 | CoinW spot base rate (verified) | **Set to your actual tier.** Lowering is safe; raising re-derives `s_floor` |
-| `target_edge` | 0.0015 | Required net profit per round trip | Higher means fewer, fatter trades. Below 0.0005 the strategy is fee-dominated |
+| `target_edge` | 0.0015 | Required net profit per round trip | Higher means fewer, fatter trades. `validate()` **rejects** any value where the worst-case round trip (both legs taker, adverse slippage) is not positive — at the shipped fees that is anything at or below 0.0010 |
 | `cap_range` / `cap_uptrend` / `cap_downtrend` | 0.50 / 0.60 / 0.15 | Inventory cap by regime | **The dominant risk lever.** Full-run max drawdown runs 22.4% / 26.1% / 41.9% at caps of 0.20 / 0.30 / 0.50 |
 | `dd_kill` | *derived* 35% | Drawdown kill switch | `clamp(cap_range × asset_max_dd, 0.15, 0.50)`. Must exceed `cap × asset drawdown`, or it fires on normal operation |
-| `adx_threshold` | 25 | Trend-strength gate | Wilder's conventional value; not tuned. Median ADX14 on BTC_USDT daily 2018-2026 is 26.2 |
+| `adx_threshold` | 25 | Trend-strength gate | Wilder's conventional value; not tuned. Median ADX14 on BTC_USDT daily 2018-2026 is 26.5 |
 | `ema_fast` / `ema_slow` | 50 / 200 | Trend-direction gate | Conventional pair; not tuned |
 | `max_level_pct` | 0.12 | Per-level notional ceiling | Hard cap |
 | `donchian_period` | 20 | Range-break lookback | Used for invalidation only, never for anchoring |

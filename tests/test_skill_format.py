@@ -267,17 +267,29 @@ def test_readme_headline_table_matches_generated_results():
     generated = results.read_text(encoding="utf-8")
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
 
+    def first_two(match):
+        cells = [c.strip().strip("*` ") for c in match.group(1).split("|")][:2]
+        return [round(float(c.rstrip("%").replace("+", "").replace("−", "-")), 2) for c in cells]
+
     for window in ("bear-2022", "range-2023", "bull-2020Q4", "flat-2024-26",
                    "year-2025", "chop-2019H2", "full-2019-2026"):
-        pattern = rf"\|\s*\**`{re.escape(window)}`\**\s*\|(.+)$"
-        gen_row = re.search(pattern, generated, flags=re.MULTILINE)
-        rd_row = re.search(pattern, readme, flags=re.MULTILINE)
-        assert gen_row and rd_row, f"{window} row missing"
-
-        def first_two(match):
-            cells = [c.strip().strip("*` ") for c in match.group(1).split("|")][:2]
-            return [round(float(c.rstrip("%").replace("+", "").replace("−", "-")), 2) for c in cells]
-
-        assert first_two(gen_row) == first_two(rd_row), (
-            f"README row for {window} disagrees with results/RESULTS.md"
+        gen_row = re.search(
+            rf"\|\s*\**`{re.escape(window)}`\**\s*\|(.+)$", generated, flags=re.MULTILINE
         )
+        assert gen_row, f"{window} row missing from RESULTS.md"
+        expected = first_two(gen_row)
+
+        # The README carries TWO tables -- English and Chinese. The Chinese rows
+        # append a label (`bear-2022` 熊市), so the pattern has to tolerate it, and
+        # every occurrence must be checked rather than just the first. A guard that
+        # only pins the English table leaves the translated numbers free to drift.
+        rows = re.findall(
+            rf"\|\s*\**`{re.escape(window)}`\**[^|]*\|(.+)$", readme, flags=re.MULTILINE
+        )
+        assert len(rows) >= 2, f"expected {window} in both README tables, found {len(rows)}"
+        for i, row in enumerate(rows):
+            got = first_two(re.match(r"(.*)", row))
+            assert got == expected, (
+                f"README table #{i + 1} row for {window} says {got}, "
+                f"results/RESULTS.md says {expected}"
+            )

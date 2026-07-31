@@ -50,18 +50,20 @@ F4  sell fills iff high > p*(1+1bp)
 F5  fill price is always the limit price -- never improved, even on a gap
 F6  if the bar OPENS through our limit, a post-only order would have
     been rejected -> fill at p but charge the TAKER fee
-F7  one fill per level per bar
-F8  de-risk sales execute at the bar CLOSE with taker fee, never the high
+F7  one fill per level per UTC DAY -- the ladder refreshes once daily and a
+    level that fills is not re-armed until the next rollover
+F8  forced sales price at a CLOSE, never a high: regime de-risking at the last
+    close known at the 00:00 rollover, the kill at the current bar's close
 F9  0bp slippage on maker fills, 5bp adverse on taker fills
 ```
 
-**Residual optimism, disclosed:** even with F3's through-buffer the model assumes we are at the front of the queue at every price we trade through. On a thin book that is generous. Section 7 reruns everything at `fill_probability` 1.0 / 0.7 / 0.5 to price that assumption instead of hiding it.
+**Residual optimism, disclosed:** even with F3's through-buffer the model assumes we are at the front of the queue at every price we trade through. On a thin book that is generous. `results/sensitivity.md` section 4 reruns everything at `fill_probability` 1.0 / 0.7 / 0.5 to price that assumption instead of hiding it.
 
 ---
 
 ## 3. Headline results
 
-Every tested window is here, including the two where the strategy is beaten badly. Reporting only the flattering window is the most common backtest dishonesty and publishing all of them is cheap insurance against the accusation.
+Every tested window is here, including every one where the strategy is beaten. Reporting only the flattering window is the most common backtest dishonesty and publishing all of them is cheap insurance against the accusation.
 
 | Window | Strategy | Max DD | Buy & hold | B&H max DD | Exposure-matched B&H | Avg inventory | Round trips | Sharpe | Calmar |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -73,7 +75,7 @@ Every tested window is here, including the two where the strategy is beaten badl
 | `chop-2019H2` | **+11.55%** | 13.22% | -21.55% | 50.67% | -5.76% | 26.7% | 54 | 0.78 | 1.35 |
 | `full-2019-2026` | **+56.13%** | 41.86% | +1598.88% | 77.24% | +457.63% | 28.6% | 408 | 0.37 | 0.14 |
 
-**Exposure-matched buy & hold is the fair comparison.** This strategy runs roughly 15-25% average inventory; measuring it against 100%-long BTC compares two different amounts of risk. Both are shown, always.
+**Exposure-matched buy & hold is the fair comparison.** This strategy runs 25% average inventory across these windows (1% to 38%); measuring it against 100%-long BTC compares two different amounts of risk. Both are shown, always. Note the benchmark is only exposure-matched at t=0 -- it never trims, so its exposure drifts upward as BTC rises, which makes it harder to beat, not easier.
 
 Across 7 windows the strategy beats outright buy-and-hold in **3** and exposure-matched buy-and-hold in **3**.
 
@@ -105,12 +107,12 @@ The 100% win rate is **an invariant of the exit design, not skill**, and it excl
 
 Each architectural change measured in isolation on the same data: the mean across the 6 sub-windows, and separately the full 2019-2026 run. A single good number proves nothing, and the sub-windows overlap heavily, so the full run is the tiebreaker.
 
-| Variant | Sub-window mean return | Sub-window mean DD | Full-run return | Full-run DD | Losing round trips | Mean fee drag |
-|---|---:|---:|---:|---:|---:|---:|
-| A. floating exits (the broken design) | -0.67% | 15.16% | **-37.60%** | 54.75% | **295** | 5.6% |
-| B. + paired per-lot exits | -1.58% | 16.10% | **+39.91%** | 41.95% | **0** | 5.1% |
-| C. + regime gate, passive — **SHIPPED DEFAULT** | -0.84% | 17.56% | **+56.13%** | 41.86% | **0** | 5.0% |
-| D. + active de-risk (tested, REJECTED) | +2.08% | 12.63% | **+14.25%** | 42.05% | **0** | 4.9% |
+| Variant | Sub-window mean return | Sub-window mean DD | Full-run return | Full-run DD | Full-run round trips | Full-run losing round trips | Mean fee drag |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| A. floating exits (the broken design) | -0.67% | 15.16% | **-37.60%** | 54.75% | 505 | **154** | 5.6% |
+| B. + paired per-lot exits | -1.58% | 16.10% | **+39.91%** | 41.95% | 431 | **0** | 5.1% |
+| C. + regime gate, passive — **SHIPPED DEFAULT** | -0.84% | 17.56% | **+56.13%** | 41.86% | 408 | **0** | 5.0% |
+| D. + active de-risk (tested, REJECTED) | +2.08% | 12.63% | **+14.25%** | 42.05% | 403 | **0** | 4.9% |
 
 **Read the losing-round-trip column first, and read it for what it is.** Floating exits produce well over a hundred losing round trips; paired exits produce exactly zero, in every window, across every configuration tested. That is a *structural guarantee*, not a statistical result.
 
@@ -122,7 +124,7 @@ Every number below is computed at generation time, not transcribed.
 
 **1. Force-selling into a downtrend is a wealth transfer, not a risk control.** Selling inventory down to the 15% DOWNTREND cap when the regime turns down is the obvious design and it is what most grid write-ups describe. Over the full run it returns +14.25% against +56.13% for not doing it -- a cost of **41.9 percentage points**. Selling into weakness at taker prices and rebuying when the regime flips back is a pump running in the wrong direction. What *does* work is the passive half of the same gate, refusing to add new buys in a downtrend: +39.91% without it against +56.13% with it, worth **16.2 points**. **Stop adding; do not panic-sell; keep a properly calibrated circuit breaker.**
 
-**2. A hardcoded drawdown kill switch was a large source of loss while wearing the label 'risk control'.** It was originally a flat 20%. But holding up to 50% of equity in an asset that routinely falls 40-50% makes a >20% equity drawdown *structurally normal*, so the switch was not detecting an abnormal loss -- it fired on the strategy working as designed, at local bottoms, at taker prices. At a 20% threshold the kill path realised **-9,955 USDT** on a 10,000 USDT account and the full run returned **+15.33%**. Deriving the threshold as `clamp(cap_range x asset_max_dd, 0.15, 0.50)` = **35%** leaves -3,204 USDT realised on that path and **+56.13%** overall. A threshold with units of percent is not a risk control until you can say what it is a threshold *of*.
+**2. A hardcoded drawdown kill switch was a large source of loss while wearing the label 'risk control'.** It was originally a flat 20%. But holding up to 50% of equity in an asset whose own worst drawdown in this dataset is 77% makes a >20% equity drawdown *structurally normal*, so the switch was not detecting an abnormal loss -- it fired on the strategy working as designed, at local bottoms, at taker prices. At a 20% threshold the kill path realised **-9,955 USDT** on a 10,000 USDT account and the full run returned **+15.33%**. Deriving the threshold as `clamp(cap_range x asset_max_dd, 0.15, 0.50)` = **35%** leaves -3,204 USDT realised on that path and **+56.13%** overall. A threshold with units of percent is not a risk control until you can say what it is a threshold *of*.
 
 **3. 'Sell the worst lots first' is backwards.** Dumping highest-cost-basis lots removes the positions furthest from their exits, which is the intuitive choice and the one we implemented first. Lowest-cost-first realises a smaller loss and leaves the deep lots to recover: **+14.25%** against **-2.86%** on the full run with forced de-risking enabled. The shipped default does not force-sell, so this governs only the drawdown-kill liquidation path -- which now honours the same setting rather than hardcoding the rejected ordering, as it did until an audit caught it.
 

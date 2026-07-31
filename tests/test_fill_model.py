@@ -176,6 +176,42 @@ def test_a_level_cannot_fill_twice_in_one_day():
 # --------------------------------------------------------------------------- #
 
 
+def test_lot_book_is_snapshotted_at_the_bar_open():
+    """F2's other half: a same-bar sell must not free a lot slot or inventory
+    headroom for a same-bar buy. Only the cash half of F2 was tested originally,
+    and the lot-book half was silently unguarded.
+
+    Constructed so the R3 lot ceiling is the binding constraint: with
+    max_open_lots=1, a bar on which the single open lot's exit fills AND a buy
+    level is crossed must NOT open a replacement lot on that same bar.
+    """
+    daily = make_daily([100.0] * 260)
+    start = 260 * DAY_MS
+    cfg = flat_config(n_levels=1, max_open_lots=1)
+
+    from grid.strategy import SignalEngine
+
+    level = SignalEngine(daily, cfg).signal_for(start).buy_levels[0]
+
+    bars = [
+        (100.0, 100.0, 100.0, 100.0),  # rollover, orders armed for next bar
+        (100.0, 100.0, level * 0.98, 99.0),  # buy fills
+        # Wide bar: high clears the lot's exit AND low re-crosses the buy level.
+        (99.0, 200.0, level * 0.90, 99.0),
+        (99.0, 200.0, level * 0.90, 99.0),
+    ]
+    result = run_backtest(make_exec(bars, start), daily, cfg, label="t")
+
+    by_bar: dict[int, list[str]] = {}
+    for t in result.trades:
+        by_bar.setdefault(t.ts, []).append(t.side)
+    for ts, sides in by_bar.items():
+        assert not ("SELL" in sides and "BUY" in sides), (
+            f"bar {ts} both closed and opened a lot at max_open_lots=1: "
+            f"the sell freed a slot for the buy within the same bar"
+        )
+
+
 def test_cash_never_goes_negative():
     """Cash freed by a sell on bar t must not fund a buy on bar t."""
     rng = np.random.default_rng(2)

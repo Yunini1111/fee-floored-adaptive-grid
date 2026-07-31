@@ -22,7 +22,54 @@ import numpy as np
 from .data import Candles
 from .engine import BacktestResult
 
-__all__ = ["Metrics", "compute_metrics", "max_drawdown"]
+__all__ = ["Metrics", "compute_metrics", "max_drawdown", "verify_cap_compliance"]
+
+
+def verify_cap_compliance(result) -> int:
+    """Replay the trade log and count R1 violations. Returns the breach count.
+
+    This exists because the obvious way to "check" the inventory cap -- re-testing
+    the gate's own expression a few lines after the gate -- is a tautology. Same
+    variables, same comparison, so it can never fire, and a zero from it means
+    nothing at all.
+
+    So this rebuilds the book from the trade log alone, using only the
+    decision-time inputs the engine recorded (the bar's open and the cap in force
+    at that moment), and re-derives the post-trade inventory ratio independently.
+    It shares no arithmetic with the gate, so it CAN fail, which is the entire
+    point of having it.
+    """
+    trades = sorted(result.trades, key=lambda t: (t.ts, 0 if t.side == "SELL" else 1))
+    context = {(ts, lot_id): (bar_open, cap) for ts, lot_id, bar_open, cap in result.cap_context}
+
+    cash = result.config.initial_equity
+    holdings: dict[int, float] = {}
+    breaches = 0
+
+    for trade in trades:
+        if trade.side == "SELL":
+            cash += trade.notional - trade.fee
+            holdings.pop(trade.lot_id, None)
+            continue
+
+        key = (trade.ts, trade.lot_id)
+        cash -= trade.notional + trade.fee
+        holdings[trade.lot_id] = trade.qty
+
+        if key not in context:
+            continue
+        bar_open, cap = context[key]
+        # Value everything the way the decision had to: prior lots at the bar's
+        # open, the new lot at what we actually paid.
+        inventory = sum(
+            qty * (trade.price if lot_id == trade.lot_id else bar_open)
+            for lot_id, qty in holdings.items()
+        )
+        equity = cash + inventory
+        if equity > 0 and inventory > cap * equity * (1 + 1e-6):
+            breaches += 1
+
+    return breaches
 
 REGIME_NAMES = ("RANGE", "UPTREND", "DOWNTREND", "INSUFFICIENT_HISTORY")
 
@@ -209,6 +256,8 @@ def compute_metrics(result: BacktestResult, execution: Candles) -> Metrics:
     if n:
         for code, name in enumerate(REGIME_NAMES):
             occupancy[name] = float(np.count_nonzero(result.regime_code == code) / n)
+
+    result.cap_breaches = verify_cap_compliance(result)
 
     # --- benchmarks ---------------------------------------------------------
     fee = cfg.maker_fee
