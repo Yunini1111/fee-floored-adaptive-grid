@@ -173,7 +173,8 @@ results/                  generated: RESULTS.md, sensitivity.md, trades.csv, 3 c
 
 As of 2026-08-01, `command=returnCurrencies` lists **CWC** as a registered currency (`symbolId 2018`,
 ERC20) with deposits and withdrawals disabled, and `command=returnSymbol` returns **417 spot pairs,
-none of which is a CWC pair**. This Skill therefore ships calibrated for `BTC_USDT`. No listing,
+none of which is a CWC pair**. Both raw responses are committed to `data/` so you can check this
+yourself without a network call. This Skill therefore ships calibrated for `BTC_USDT`. No listing,
 date, price, or supply is claimed here.
 
 What ships instead is the procedure, which applies to any newly listed token the moment its pair

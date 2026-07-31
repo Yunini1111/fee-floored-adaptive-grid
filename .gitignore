@@ -16,3 +16,9 @@ STATUS.md
 # while ~90 MB of klines is not. `python run_backtest.py --all` refetches them.
 data/*.json
 !data/manifest.json
+
+# These two are small and are the evidence behind claims made in prose -- the
+# exchange constraints the engine enforces, and the CWC currency status asserted
+# in README.md. Committed so a reviewer can check them without a network call.
+!data/returnSymbol.json
+!data/returnCurrencies.json
