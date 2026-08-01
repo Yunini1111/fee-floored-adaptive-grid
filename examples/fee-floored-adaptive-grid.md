@@ -27,7 +27,7 @@ mechanically verifiable rather than statistical.
 Range-bound, choppy and declining spot markets, on capital the operator can afford to lose in full.
 
 It is **not** suitable as a way to outperform holding the asset in a trending market. Over the full
-2019-2026 backtest it is beaten badly by buy-and-hold on return, while running roughly half the
+2018-2026 backtest it is beaten badly by buy-and-hold on return, while running roughly half the
 maximum drawdown. The trade being offered is capped upside for materially less drawdown. Headline
 figures are in [`../README.md`](../README.md) and
 [`../results/RESULTS.md`](../results/RESULTS.md) — deliberately not duplicated here, because a
