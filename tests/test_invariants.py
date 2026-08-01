@@ -5,6 +5,7 @@ can run. They use the cached CoinW data if it is present and skip cleanly if not
 so `pytest` works on a fresh clone before `run_backtest.py` has ever been run.
 """
 
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -17,13 +18,19 @@ from grid.strategy import Config, Regime, SignalEngine, net_edge_per_round_trip
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
+# Imported rather than duplicated: hardcoding the window here let the tests drift
+# away from what the study actually ran, and the warm-up test below then passed
+# against the wrong dates.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from run_backtest import DAILY_START, END, EXEC_START, PAIR  # noqa: E402
+
 
 @pytest.fixture(scope="module")
 def market():
     client = CoinWClient(DATA_DIR, offline=True, verbose=False)
     try:
-        daily = client.fetch("BTC_USDT", 86400, "2018-01-01", "2026-08-01")
-        execution = client.fetch("BTC_USDT", 900, "2019-01-01", "2026-08-01")
+        daily = client.fetch(PAIR, 86400, DAILY_START, END)
+        execution = client.fetch(PAIR, 900, EXEC_START, END)
     except DataError as exc:
         pytest.skip(f"cached CoinW data unavailable ({exc}); run `python run_backtest.py --all`")
     return daily, execution
@@ -266,3 +273,40 @@ def test_regime_occupancy_matches_the_documented_split(market):
     assert 0.45 < counts[Regime.RANGE] / total < 0.65
     assert 0.20 < counts[Regime.UPTREND] / total < 0.35
     assert 0.10 < counts[Regime.DOWNTREND] / total < 0.25
+
+
+# --------------------------------------------------------------------------- #
+# Data-layer contract
+# --------------------------------------------------------------------------- #
+
+
+def test_fetch_returns_exactly_the_requested_window(market):
+    """Regression: chunks are cached at calendar-year granularity, so a cached
+    chunk can hold a SUPERSET of what was asked for. Returning that silently made
+    the backtest run over a window nobody requested and misreported its own
+    provenance. The cache may be a superset; `fetch` must be exact.
+    """
+    client = CoinWClient(DATA_DIR, offline=True, verbose=False)
+    for start, end in (("2018-03-05", "2026-08-01"), ("2022-01-01", "2023-01-01")):
+        series = client.fetch("BTC_USDT", 900, start, end)
+        assert int(series.ts[0]) >= iso_to_ms(start), (
+            f"fetch({start}..{end}) leaked bars from before {start}"
+        )
+        assert int(series.ts[-1]) < iso_to_ms(end), (
+            f"fetch({start}..{end}) leaked bars at or after {end}"
+        )
+
+
+def test_full_run_starts_where_the_indicators_are_warm(market):
+    """The execution series must not begin before EMA200/ADX14 are usable, and it
+    must not begin materially later either -- starting late silently discards the
+    2018 bear market, which is the most demanding window in the record."""
+    daily, execution = market
+    engine = SignalEngine(daily, Config())
+    warm = int(np.argmax(np.isfinite(engine.adx) & np.isfinite(engine.ema_slow)))
+    first_exec_day = int(execution.ts[0]) // 86_400_000 * 86_400_000
+    warm_day = int(daily.ts[warm])
+    assert first_exec_day > warm_day, "execution starts before indicators are warm"
+    assert first_exec_day - warm_day <= 40 * 86_400_000, (
+        "execution starts more than 40 days after warm-up; earlier data is being wasted"
+    )

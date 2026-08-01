@@ -12,6 +12,7 @@ The second half of this table is the one most comparisons omit. If you are a BTC
 
 | Market | BTC moved | Grid (USDT) | Hold (USDT) | Winner | Grid ends with | Hold ends with | Winner |
 |---|---:|---:|---:|:--|---:|---:|:--|
+| `bear-2018` | -67.8% | -32.66% | -67.87% | **grid** | 1.8185 BTC | 0.8676 BTC | **grid** |
 | `bear-2022` | -64.2% | -33.36% | -64.25% | **grid** | 0.4030 BTC | 0.2162 BTC | **grid** |
 | `range-2023` | +155.6% | +12.32% | +155.39% | hold | 0.2657 BTC | 0.6041 BTC | hold |
 | `bull-2020Q4` | +445.1% | +10.82% | +444.53% | hold | 0.1887 BTC | 0.9270 BTC | hold |
@@ -19,7 +20,7 @@ The second half of this table is the one most comparisons omit. If you are a BTC
 | `year-2025` | -6.4% | -0.55% | -6.45% | **grid** | 0.1135 BTC | 0.1067 BTC | **grid** |
 | `chop-2019H2` | -21.5% | +11.55% | -21.55% | **grid** | 1.3088 BTC | 0.9204 BTC | **grid** |
 | `ytd-2026` | -28.2% | -11.22% | -28.25% | **grid** | 0.1410 BTC | 0.1140 BTC | **grid** |
-| `full-2019-2026` | +1600.6% | +56.13% | +1598.88% | hold | 0.2481 BTC | 2.6991 BTC | hold |
+| `full-2018-2026` | +446.6% | +30.77% | +446.07% | hold | 0.2078 BTC | 0.8676 BTC | hold |
 
 **The pattern is unambiguous and it holds in both numeraires.** The grid wins when the market falls or chops sideways, and loses when it trends up. In the 2022 bear it finished with substantially *more BTC* than simply holding -- which is the coin-margined pitch, and it is real. In the bull windows it finished with a fraction of the BTC, which is the same mechanism running in reverse.
 
@@ -77,16 +78,16 @@ Martingale parameters are the conventional retail defaults, not tuned: base orde
 
 <sub>Martingale detail: base 2%, 8 safety orders x1.5 every 2.5%, TP 1.5%. 10 cycles; ladder fully spent on 17,374 bars (85.5% of the time).</sub>
 
-### `full-2019-2026` — Everything: 7.6 years, no cherry-picking (BTC +1600.6%)
+### `full-2018-2026` — Everything CoinW has, 8.4 years, no cherry-picking (BTC +446.6%)
 
 | Strategy | Return | Max DD | Ends holding |
 |---|---:|---:|---:|
-| **Grid (this Skill)** | +56.13% | **41.86%** | 0.2481 BTC |
-| Buy & hold | **+1598.88%** | 77.24% | **2.6991 BTC** |
-| DCA every 7d | +222.13% | 63.29% | 0.5118 BTC |
-| Martingale (DCA bot) | +108.00% | 50.33% | 0.3305 BTC |
+| **Grid (this Skill)** | +30.77% | **41.85%** | 0.2078 BTC |
+| Buy & hold | **+446.03%** | 77.23% | **0.8675 BTC** |
+| DCA every 7d | +285.87% | 66.97% | 0.6130 BTC |
+| Martingale (DCA bot) | +99.44% | 68.91% | 0.3169 BTC |
 
-<sub>Martingale detail: base 2%, 8 safety orders x1.5 every 2.5%, TP 1.5%. 1525 cycles; ladder fully spent on 74,392 bars (28.0% of the time).</sub>
+<sub>Martingale detail: base 2%, 8 safety orders x1.5 every 2.5%, TP 1.5%. 1380 cycles; ladder fully spent on 119,454 bars (40.6% of the time).</sub>
 
 **The martingale rows are the ones to read carefully.** Its ladder is finite. Once all eight safety orders are spent the bot is simply fully exposed, waiting for price to return to average cost, and the note under each table reports exactly how much of the window it spent in that state. Martingale converts a drawdown into a *frozen* position, which is why its drawdown is consistently the worst of the three active strategies.
 

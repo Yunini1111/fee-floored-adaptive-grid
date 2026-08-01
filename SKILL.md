@@ -238,7 +238,7 @@ choppy and declining markets.
 
 - **This strategy is structurally long BTC. It is not market-neutral, not hedged, and not
   risk-free.** In the worst tested window it lost **33.4%** of the account, with a maximum drawdown
-  of **35.5%**, and over the full 2019-2026 run its maximum drawdown was **41.9%**.
+  of **35.5%**, and over the full 2018-2026 run its maximum drawdown was **41.9%**.
 - The realistic worst case is worse than the backtest. The kill switch assumes a fill; a venue
   outage, a withdrawal freeze, or a gap through every level can prevent one. **Assume total loss of
   the allocated capital is possible.**
@@ -255,8 +255,8 @@ choppy and declining markets.
 
 - **It has never been run against a real CoinW account.** It is documentation plus a historical
   simulation, and nothing here is a live-trading record.
-- **It does not beat holding BTC.** Over the full 2019-2026 run it returned **+56.1%** against
-  **+1,598.9%** for buy-and-hold. It won 3 of 7 windows against buy-and-hold and 3 of 7 against an
+- **It does not beat holding BTC.** Over the full 2018-2026 run it returned **+30.8%** against
+  **+446.1%** for buy-and-hold. It won 3 of 7 windows against buy-and-hold and 3 of 7 against an
   exposure-matched benchmark. **If you believe BTC is going up, hold BTC.** This strategy is for
   wanting volatility exposure without a directional view, and accepting capped upside in exchange
   for roughly half the drawdown (41.9% against 77.2% over the full run).

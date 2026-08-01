@@ -40,11 +40,18 @@ DATA_DIR = ROOT / "data"
 RESULTS_DIR = ROOT / "results"
 
 PAIR = "BTC_USDT"
-DAILY_START = "2018-01-01"  # a year of burn-in so EMA200/ADX14 are warm
-EXEC_START = "2019-01-01"
+# Earliest bar CoinW serves for BTC_USDT, at every granularity.
+DAILY_START = "2017-08-17"
+# The first UTC day on which EMA200 and ADX14 are fully warm (daily index 199 is
+# 2018-03-04, and a day reads only bars <= D-1). Starting later would silently
+# discard the 2018 bear market -- BTC -72% over that calendar year, -84%
+# peak-to-trough -- which is the single most demanding environment in the record
+# and precisely the one a grid claims to be for.
+EXEC_START = "2018-03-05"
 END = "2026-08-01"
 
 WINDOWS = [
+    ("bear-2018", EXEC_START, "2019-01-01", "The 2018 bear: BTC -72% for the year"),
     ("bear-2022", "2022-01-01", "2023-01-01", "Sustained bear market, BTC -64%"),
     ("range-2023", "2023-01-01", "2024-01-01", "Recovery year"),
     ("bull-2020Q4", "2020-10-01", "2021-04-01", "Parabolic bull, BTC +445%"),
@@ -52,7 +59,7 @@ WINDOWS = [
     ("year-2025", "2025-01-01", "2026-01-01", "Calendar 2025"),
     ("chop-2019H2", "2019-07-01", "2020-03-01", "Choppy decline incl. Mar-2020 crash"),
     ("ytd-2026", "2026-01-01", END, "Year to date: BTC -28%, ~50% below its 2025 high"),
-    ("full-2019-2026", EXEC_START, END, "Everything: 7.6 years, no cherry-picking"),
+    ("full-2018-2026", EXEC_START, END, "Everything CoinW has, 8.4 years, no cherry-picking"),
 ]
 
 
@@ -82,7 +89,7 @@ def load_data(offline: bool):
     client = CoinWClient(DATA_DIR, offline=offline)
     daily = client.fetch(PAIR, 86400, DAILY_START, END)
     execution = client.fetch(PAIR, 900, EXEC_START, END)
-    hourly = client.fetch(PAIR, 3600, "2018-12-01", END)
+    hourly = client.fetch(PAIR, 3600, DAILY_START, END)
     constraints = fetch_symbol_constraints(PAIR, DATA_DIR, offline=offline)
     return daily, execution, hourly, constraints
 
@@ -303,7 +310,7 @@ def chain_section(daily, execution, hourly, base: Config) -> str:
         ("C. + regime gate, passive — **SHIPPED DEFAULT**", base),
         ("D. + active de-risk (tested, REJECTED)", base.with_(active_derisk=True)),
     ]
-    window_names = [w[0] for w in WINDOWS if w[0] != "full-2019-2026"]
+    window_names = [w[0] for w in WINDOWS if w[0] != "full-2018-2026"]
 
     lines = ["## 5. The improvement chain, measured", ""]
     lines.append(
@@ -484,7 +491,7 @@ def detail_section(rows) -> str:
 def sensitivity(daily, execution, hourly, base: Config) -> str:
     from grid.data import iso_to_ms
 
-    window_names = [w for w in WINDOWS if w[0] != "full-2019-2026"]
+    window_names = [w for w in WINDOWS if w[0] != "full-2018-2026"]
 
     per_window: dict = {}
 
@@ -810,7 +817,7 @@ def write_charts(rows) -> None:
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    target = next((r for r in rows if r[0] == "full-2019-2026"), rows[-1])
+    target = next((r for r in rows if r[0] == "full-2018-2026"), rows[-1])
     _name, _note, result, m, sub = target
     ts = np.array([np.datetime64(int(t), "ms") for t in result.ts])
 
@@ -878,7 +885,7 @@ def case_review(rows) -> str:
     """
     from grid.data import ms_to_iso
 
-    target = next((r for r in rows if r[0] == "full-2019-2026"), rows[-1])
+    target = next((r for r in rows if r[0] == "full-2018-2026"), rows[-1])
     _name, _note, result, m, _sub = target
     trades = sorted(result.trades, key=lambda t: t.ts)
     buys = {t.lot_id: t for t in trades if t.side == "BUY"}
@@ -1085,8 +1092,8 @@ def when_to_grid(daily, execution, hourly, base: Config) -> str:
     """
     from grid.data import iso_to_ms
 
-    windows = [w for w in WINDOWS if w[0] != "full-2019-2026"] + [
-        w for w in WINDOWS if w[0] == "full-2019-2026"
+    windows = [w for w in WINDOWS if w[0] != "full-2018-2026"] + [
+        w for w in WINDOWS if w[0] == "full-2018-2026"
     ]
 
     out = [
@@ -1155,7 +1162,7 @@ def when_to_grid(daily, execution, hourly, base: Config) -> str:
         "",
     ]
 
-    bench_windows = ("ytd-2026", "bear-2022", "chop-2019H2", "bull-2020Q4", "full-2019-2026")
+    bench_windows = ("ytd-2026", "bear-2022", "chop-2019H2", "bull-2020Q4", "full-2018-2026")
     for name, start, end, note in WINDOWS:
         if name not in bench_windows:
             continue
@@ -1302,7 +1309,7 @@ def when_to_grid(daily, execution, hourly, base: Config) -> str:
 
 
 def write_trades(rows) -> None:
-    target = next((r for r in rows if r[0] == "full-2019-2026"), rows[-1])
+    target = next((r for r in rows if r[0] == "full-2018-2026"), rows[-1])
     result = target[2]
     from grid.data import ms_to_iso
 

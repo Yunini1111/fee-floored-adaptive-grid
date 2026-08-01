@@ -39,6 +39,16 @@
     "start_ms": 1767225600000,
     "url": "https://api.coinw.com/api/v1/public?command=returnChartData&currencyPair=BTC_USDT&period=300&start=1767225600000&end=1785542400000"
   },
+  "BTC_USDT_3600_2017-08-17_2026-08-01.json": {
+    "end_ms": 1785542400000,
+    "fetched_at": "2026-08-01T14:41:04Z",
+    "pair": "BTC_USDT",
+    "period": 3600,
+    "rows": 78351,
+    "sha256": "94ee55ff504e4728e676d22f3c6f96d9909fb47553d2c7233917bf00c3738c1b",
+    "start_ms": 1502928000000,
+    "url": "https://api.coinw.com/api/v1/public?command=returnChartData&currencyPair=BTC_USDT&period=3600&start=1502928000000&end=1785542400000"
+  },
   "BTC_USDT_3600_2018-12-01_2026-08-01.json": {
     "end_ms": 1785542400000,
     "fetched_at": "2026-07-31T16:42:37Z",
@@ -59,6 +69,26 @@
     "start_ms": 1722470400000,
     "url": "https://api.coinw.com/api/v1/public?command=returnChartData&currencyPair=BTC_USDT&period=3600&start=1722470400000&end=1785542400000"
   },
+  "BTC_USDT_86400_2017-01-01_2026-08-01.json": {
+    "end_ms": 1785542400000,
+    "fetched_at": "2026-08-01T14:40:21Z",
+    "pair": "BTC_USDT",
+    "period": 86400,
+    "rows": 3270,
+    "sha256": "4bfee52d007da2ea28f4c4acb4e4fc27b3fe7ed66fef219f878fc55869f34152",
+    "start_ms": 1483228800000,
+    "url": "https://api.coinw.com/api/v1/public?command=returnChartData&currencyPair=BTC_USDT&period=86400&start=1483228800000&end=1785542400000"
+  },
+  "BTC_USDT_86400_2017-08-17_2026-08-01.json": {
+    "end_ms": 1785542400000,
+    "fetched_at": "2026-08-01T14:41:00Z",
+    "pair": "BTC_USDT",
+    "period": 86400,
+    "rows": 3270,
+    "sha256": "19962f561bf54dcd1c120f41cc3542ca3ebe4b0a96cba4a50adf22933ebe4fba",
+    "start_ms": 1502928000000,
+    "url": "https://api.coinw.com/api/v1/public?command=returnChartData&currencyPair=BTC_USDT&period=86400&start=1502928000000&end=1785542400000"
+  },
   "BTC_USDT_86400_2018-01-01_2026-08-01.json": {
     "end_ms": 1785542400000,
     "fetched_at": "2026-07-31T16:24:09Z",
@@ -78,6 +108,36 @@
     "sha256": "f59702421d0318a2b72528d722deffa345c3dda707c937a139aae6a1e20903e2",
     "start_ms": 1722470400000,
     "url": "https://api.coinw.com/api/v1/public?command=returnChartData&currencyPair=BTC_USDT&period=86400&start=1722470400000&end=1785542400000"
+  },
+  "BTC_USDT_900_2017-08-01_2019-01-01.json": {
+    "end_ms": 1546300800000,
+    "fetched_at": "2026-08-01T14:40:23Z",
+    "pair": "BTC_USDT",
+    "period": 900,
+    "rows": 47881,
+    "sha256": "f85f48cecc7acaabf44af8b4ce14a711ff3eb2f726402053565a1293216c3bc4",
+    "start_ms": 1501545600000,
+    "url": "https://api.coinw.com/api/v1/public?command=returnChartData&currencyPair=BTC_USDT&period=900&start=1501545600000&end=1546300800000"
+  },
+  "BTC_USDT_900_2017.json": {
+    "end_ms": 1514764800000,
+    "fetched_at": "2026-08-01T14:41:05Z",
+    "pair": "BTC_USDT",
+    "period": 900,
+    "rows": 13103,
+    "sha256": "826c5e39a5bd3b3d57d1bf228ebc432169985cd415ac71d46431a0014c21f4c4",
+    "start_ms": 1502928000000,
+    "url": "https://api.coinw.com/api/v1/public?command=returnChartData&currencyPair=BTC_USDT&period=900&start=1502928000000&end=1514764800000"
+  },
+  "BTC_USDT_900_2018.json": {
+    "end_ms": 1546300800000,
+    "fetched_at": "2026-08-01T14:41:07Z",
+    "pair": "BTC_USDT",
+    "period": 900,
+    "rows": 34778,
+    "sha256": "d8956ac946ec537ff135be9a28b235c850962603560e0469a8b7e0bf950c9da7",
+    "start_ms": 1514764800000,
+    "url": "https://api.coinw.com/api/v1/public?command=returnChartData&currencyPair=BTC_USDT&period=900&start=1514764800000&end=1546300800000"
   },
   "BTC_USDT_900_2019-07-01_2020-03-01.json": {
     "end_ms": 1583020800000,

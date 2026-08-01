@@ -245,7 +245,7 @@ def test_reported_numbers_agree_with_generated_results(text):
         pytest.skip("results/RESULTS.md not generated yet — run `python run_backtest.py --all`")
     generated = results.read_text(encoding="utf-8")
 
-    row = re.search(r"\|\s*`full-2019-2026`\s*\|(.+)$", generated, flags=re.MULTILINE)
+    row = re.search(r"\|\s*\**`full-2018-2026`\**\s*\|(.+)$", generated, flags=re.MULTILINE)
     assert row, "full-run row missing from RESULTS.md"
     cells = [c.strip().strip("*` ") for c in row.group(1).split("|")]
     nums = [float(c.rstrip("%").replace("+", "").replace(",", "")) for c in cells[:5]]
@@ -272,7 +272,7 @@ def test_readme_headline_table_matches_generated_results():
         return [round(float(c.rstrip("%").replace("+", "").replace("−", "-")), 2) for c in cells]
 
     for window in ("bear-2022", "range-2023", "bull-2020Q4", "flat-2024-26",
-                   "year-2025", "chop-2019H2", "ytd-2026", "full-2019-2026"):
+                   "year-2025", "chop-2019H2", "ytd-2026", "bear-2018", "full-2018-2026"):
         gen_row = re.search(
             rf"\|\s*\**`{re.escape(window)}`\**\s*\|(.+)$", generated, flags=re.MULTILINE
         )

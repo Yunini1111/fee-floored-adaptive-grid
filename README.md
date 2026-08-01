@@ -6,8 +6,8 @@ check it.
 
 > **Read this first.** This is a **sideways- and down-market instrument**. It converts realised
 > volatility into realised cash flow and caps upside in exchange for materially lower drawdown.
-> Over the full 2019-2026 backtest it returned **+56.1%** while buy-and-hold BTC returned
-> **+1,598.9%** — with a maximum drawdown of **41.9%** against buy-and-hold's **77.2%**.
+> Over the full 2018-2026 backtest it returned **+30.8%** while buy-and-hold BTC returned
+> **+446.1%** — with a maximum drawdown of **41.9%** against buy-and-hold's **77.2%**.
 > **If you believe BTC is going up, hold BTC.** This strategy is for wanting exposure to volatility
 > without a directional view, and being willing to give up trend participation to get roughly half
 > the drawdown. It is structurally long BTC, it is not hedged, and it can lose a third of the
@@ -28,8 +28,8 @@ refuses to place an order that violates it.
 When a buy fills, its sell price is fixed at `fill_price × (1 + s_at_fill)` and is **never
 re-priced**. Re-anchoring the grid moves only where *new* buys go. This makes "every completed round
 trip is net-positive" a structural guarantee rather than a hope — and `tests/test_invariants.py`
-asserts it across all 408 round trips of the full run. The ablation that lets exits float with the
-grid produces **154 losing round trips** on that same run, and turns +39.9% into **−37.6%**.
+asserts it across all 430 round trips of the full run. The ablation that lets exits float with the
+grid produces **184 losing round trips** on that same run, and turns +18.5% into **−58.7%**.
 
 **3. The volatility input has no rescaling step.**
 CoinW serves native daily candles, so daily ATR is read directly. Converting volatility from bars of
@@ -45,6 +45,7 @@ Every window tested is shown, including the ones where the strategy is beaten ba
 
 | Window | Strategy | Max DD | Buy & hold | Exposure-matched B&H | Round trips | Losing |
 |---|---:|---:|---:|---:|---:|---:|
+| `bear-2018` | −32.66% | 36.75% | −67.87% | −28.99% | 22 | **0** |
 | `bear-2022` | −33.36% | 35.46% | −64.25% | −24.10% | 16 | **0** |
 | `range-2023` | +12.32% | 6.92% | +155.39% | +27.37% | 70 | **0** |
 | `bull-2020Q4` | +10.82% | 2.17% | +444.53% | +4.59% | 14 | **0** |
@@ -52,10 +53,10 @@ Every window tested is shown, including the ones where the strategy is beaten ba
 | `year-2025` | −0.55% | 17.91% | −6.45% | −1.98% | 68 | **0** |
 | `chop-2019H2` | +11.55% | 13.22% | −21.55% | −5.76% | 54 | **0** |
 | **`ytd-2026`** | **−11.22%** | **14.36%** | **−28.25%** | −8.95% | 8 | **0** |
-| **`full-2019-2026`** | **+56.13%** | **41.86%** | **+1598.88%** | **+457.63%** | **408** | **0** |
+| **`full-2018-2026`** | **+30.77%** | **41.85%** | **+446.07%** | **+137.73%** | **430** | **0** |
 
-It beats outright buy-and-hold in 4 of 8 windows and the exposure-matched benchmark in 3 of 7.
-**Exposure-matched buy-and-hold is the fair comparison** — the strategy runs ~29% average inventory
+It beats outright buy-and-hold in 5 of 9 windows and the exposure-matched benchmark in 3 of 9.
+**Exposure-matched buy-and-hold is the fair comparison** — the strategy runs ~31% average inventory
 over the full run (1% to 38% by window), so measuring it against 100%-long BTC compares two
 different amounts of risk. Note the benchmark is only exposure-matched at t=0: it never trims, so
 its exposure drifts upward as BTC rises, which makes it *harder* to beat, not easier.
@@ -76,24 +77,24 @@ Every fill: [`results/trades.csv`](results/trades.csv).
 These are in the repository because they were surprising, not because they were flattering.
 
 **Force-selling into a downtrend is a wealth transfer, not a risk control.** Selling inventory down
-to a 15% cap when the regime turns down is the obvious design and it costs **41.9 percentage points**
-over the full run (+14.3% against +56.1%). Selling into weakness at taker prices and rebuying when
+to a 15% cap when the regime turns down is the obvious design and it costs **33.6 percentage points**
+over the full run (−2.8% against +30.8%). Selling into weakness at taker prices and rebuying when
 the regime flips back is a pump running in the wrong direction. What *does* work is the passive half
-of the same gate — refusing to add new buys in a downtrend — worth **16.2 points**. **Stop adding;
+of the same gate — refusing to add new buys in a downtrend — worth **12.3 points**. **Stop adding;
 do not panic-sell.**
 
 **A hardcoded drawdown kill switch was a large source of loss, while wearing the label "risk
 control".** It was originally a flat 20%. But holding up to 50% of equity in an asset whose own worst drawdown
 over this dataset is 77.2% makes a >20% equity drawdown *structurally normal*, so the switch fired on the strategy
-working as designed, at local bottoms, at taker prices — realising **−9,955 USDT** on a 10,000 USDT
-account, with the full run returning +15.3%. Deriving it as
-`clamp(cap_range × asset_max_dd, 0.15, 0.50)` = 35% leaves −3,204 USDT on that path and **+56.1%**
+working as designed, at local bottoms, at taker prices — realising **−10,533 USDT** on a 10,000 USDT
+account, with the full run returning −6.8%. Deriving it as
+`clamp(cap_range × asset_max_dd, 0.15, 0.50)` = 35% leaves −4,685 USDT on that path and **+30.8%**
 overall. **A threshold with units of percent is not a risk control until you can say what it is a
 threshold *of*.**
 
 **"Sell the worst lots first" is backwards.** Dumping highest-cost-basis lots is the intuitive
 choice; lowest-cost-first realises a smaller loss and leaves the deep lots to recover, worth
-**+14.3% against −2.9%** on the full run with forced de-risking enabled.
+**−2.8% against −26.2%** on the full run with forced de-risking enabled.
 
 Also tested and rejected: persistence-gating the de-risk, spreading it across days, and a tighter
 `K = 0.50` default whose ~10% fee drag made the regime gate look worthless. **The value of a risk
@@ -244,8 +245,8 @@ Licensed under the [MIT License](LICENSE).
 Skill 本體是 [`SKILL.md`](SKILL.md)，這個倉庫的其他內容都是為了讓你可以親自驗證它。
 
 > **請先讀這段。** 這是一個**適用於盤整與下跌行情的工具**。它把已實現波動率轉換成已實現現金流，
-> 代價是放棄上漲參與度，換取明顯較低的回撤。在 2019-2026 完整回測中它的報酬是 **+56.1%**，
-> 而單純持有 BTC 是 **+1,598.9%**；但最大回撤是 **41.9%**，持有 BTC 則是 **77.2%**。
+> 代價是放棄上漲參與度，換取明顯較低的回撤。在 2018-2026 完整回測中它的報酬是 **+30.8%**，
+> 而單純持有 BTC 是 **+446.1%**；但最大回撤是 **41.9%**，持有 BTC 則是 **77.2%**。
 > **如果你認為 BTC 會漲，那就直接持有 BTC。** 這個策略適合的情境是：你想要暴露在波動率上但不做方向判斷，
 > 並且願意用放棄趨勢行情來換取大約一半的回撤。它在結構上是淨多頭、沒有避險，
 > 在熊市可能虧掉三分之一的帳戶——2022 年就是這樣。
@@ -261,8 +262,8 @@ Skill 本體是 [`SKILL.md`](SKILL.md)，這個倉庫的其他內容都是為了
 **2. 出場價綁在「每一筆持倉」上，不綁在網格上。**
 買單成交時，它的賣出價就固定在 `成交價 × (1 + 當下間距)`，**永遠不會被重新定價**。
 重新錨定網格只會改變「新的買單掛在哪」。這讓「每一次完成的來回都是淨賺」成為結構性保證，
-而不是期望——`tests/test_invariants.py` 針對完整回測的全部 408 次來回做了斷言。
-對照組（讓出場價隨網格浮動）在同一段期間產生了 **154 次虧損的來回**，並把 +39.9% 變成 **−37.6%**。
+而不是期望——`tests/test_invariants.py` 針對完整回測的全部 430 次來回做了斷言。
+對照組（讓出場價隨網格浮動）在同一段期間產生了 **184 次虧損的來回**，並把 +18.5% 變成 **−58.7%**。
 
 **3. 波動率計算沒有任何換算步驟。**
 CoinW 直接提供原生日線，所以日 ATR 是直接讀出來的。把長度 `D` 的 K 線波動率換算到 `H` 期間需要
@@ -277,6 +278,7 @@ CoinW `BTC_USDT` 現貨，15 分鐘執行 K 線，maker = taker = 0.10%，初始
 
 | 區間 | 策略 | 最大回撤 | 買入持有 | 曝險對齊的買入持有 | 完成來回 | 虧損來回 |
 |---|---:|---:|---:|---:|---:|---:|
+| `bear-2018` 大熊市 | −32.66% | 36.75% | −67.87% | −28.99% | 22 | **0** |
 | `bear-2022` 熊市 | −33.36% | 35.46% | −64.25% | −24.10% | 16 | **0** |
 | `range-2023` 復甦 | +12.32% | 6.92% | +155.39% | +27.37% | 70 | **0** |
 | `bull-2020Q4` 大多頭 | +10.82% | 2.17% | +444.53% | +4.59% | 14 | **0** |
@@ -284,9 +286,9 @@ CoinW `BTC_USDT` 現貨，15 分鐘執行 K 線，maker = taker = 0.10%，初始
 | `year-2025` | −0.55% | 17.91% | −6.45% | −1.98% | 68 | **0** |
 | `chop-2019H2` 震盪下跌 | +11.55% | 13.22% | −21.55% | −5.76% | 54 | **0** |
 | **`ytd-2026` 今年至今（熊市）** | **−11.22%** | **14.36%** | **−28.25%** | −8.95% | 8 | **0** |
-| **`full-2019-2026` 完整期間** | **+56.13%** | **41.86%** | **+1598.88%** | **+457.63%** | **408** | **0** |
+| **`full-2018-2026` 完整期間** | **+30.77%** | **41.85%** | **+446.07%** | **+137.73%** | **430** | **0** |
 
-8 個區間中，贏過單純買入持有的有 4 個，贏過曝險對齊基準的有 3 個。
+9 個區間中，贏過單純買入持有的有 5 個，贏過曝險對齊基準的有 3 個。
 **曝險對齊的買入持有才是公平的比較對象**——本策略完整期間平均庫存約 29%（各區間 1%～38%），
 拿它去比 100% 滿倉 BTC 是在比較兩種不同的風險量。附帶說明：該基準只在 t=0 時曝險對齊，
 之後不再調整，所以 BTC 上漲時它的曝險比例會往上飄，這讓它**更難**被贏過，而不是更容易。
@@ -294,19 +296,19 @@ CoinW `BTC_USDT` 現貨，15 分鐘執行 K 線，maker = taker = 0.10%，初始
 ## 三個推翻我們自己直覺的發現
 
 **在下跌趨勢中強制賣出是財富轉移，不是風控。** 在趨勢轉空時把庫存砍到 15% 上限是最直覺的設計，
-但在完整回測中它的代價是 **41.9 個百分點**（+14.3% 對 +56.1%）。用 taker 價格賣在弱勢、然後在趨勢翻回時買回，
-是一個方向相反的抽水機。真正有效的是同一個閘門的被動面——**在下跌趨勢中不再加碼**，價值 **16.2 個百分點**。
+但在完整回測中它的代價是 **33.6 個百分點**（−2.8% 對 +30.8%）。用 taker 價格賣在弱勢、然後在趨勢翻回時買回，
+是一個方向相反的抽水機。真正有效的是同一個閘門的被動面——**在下跌趨勢中不再加碼**，價值 **12.3 個百分點**。
 **停止加碼，但不要恐慌性賣出。**
 
 **回撤斷路器曾經是最大的虧損來源，卻掛著「風控」的名字。** 它原本寫死在 20%。
 但持有最多 50% 權益在一個「自身最大回撤達 77.2%」的資產上，**超過 20% 的權益回撤本來就是結構性正常的**——
 所以這個開關偵測到的不是異常，而是策略正常運作，並且總是在局部底部、用 taker 價格觸發，
-在 10,000 USDT 的帳戶上實現了 **−9,955 USDT** 的虧損，完整回測報酬只有 +15.3%。改成推導式的
-`clamp(cap_range × asset_max_dd, 0.15, 0.50)` = 35% 之後，同一路徑只實現 −3,204 USDT，整體變成 **+56.1%**。
+在 10,000 USDT 的帳戶上實現了 **−10,533 USDT** 的虧損，完整回測報酬只有 −6.8%。改成推導式的
+`clamp(cap_range × asset_max_dd, 0.15, 0.50)` = 35% 之後，同一路徑只實現 −4,685 USDT，整體變成 **+30.8%**。
 **一個只有百分比單位的門檻，在你說得出它是「什麼東西的門檻」之前，都不算風控。**
 
 **「先賣最爛的持倉」是反的。** 先倒掉成本最高的持倉是直覺選擇；先賣成本最低的反而實現較小的虧損，
-並且把深水區的持倉留著等反彈——在開啟強制減倉的情況下，完整回測 **+14.3% 對 −2.9%**。
+並且把深水區的持倉留著等反彈——在開啟強制減倉的情況下，完整回測 **−2.8% 對 −26.2%**。
 
 **還有一個我們自己講錯的說法。** 早期版本用「報酬在全部六個測試區間都隨 K 單調改善」來合理化把
 `K` 預設值調大。外部稽核去逐區間驗算，結果不成立——**只有 6 個裡的 2 個**是單調的，而且
@@ -373,7 +375,7 @@ python -m pytest tests/ -v
 **網格在報酬、回撤、累積幣量三項全贏。** 注意馬丁的數字：它在 2026 有 **85.5% 的時間安全單已全部用完**，
 等於滿倉躺著等解套——馬丁會把「回撤」變成「凍結」，這就是它回撤永遠最差的原因。
 
-反過來看完整 2019–2026：DCA +222% 遠勝網格 +56%，因為在長期上漲的市場裡「逐步買進」是對的，
+反過來看完整 2018–2026：DCA +222% 遠勝網格 +56%，因為在長期上漲的市場裡「逐步買進」是對的，
 「賣掉漲勢」是錯的。**所以這不是哪個策略比較強，是哪個策略配哪種行情。**
 
 DCA 與馬丁的模擬使用相同的 K 線、相同費率，而且因為這兩種機器人實際上用市價單成交，

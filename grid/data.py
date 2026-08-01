@@ -316,7 +316,15 @@ class CoinWClient:
         if not rows:
             raise DataError(f"no rows returned for {pair} {period}s {start}..{end}")
 
-        candles = _rows_to_candles(rows, pair, period)
+        # Chunks are cached at calendar-year granularity, so a cached chunk can
+        # legitimately hold a SUPERSET of what was asked for -- ask for
+        # 2018-03-05 after something else already cached all of 2018 and the raw
+        # rows come back starting 2018-01-01. Returning that silently would mean
+        # `fetch` does not honour its own contract, and a backtest would run over
+        # a window nobody requested. The cache may be a superset; `fetch` is exact.
+        candles = _rows_to_candles(rows, pair, period).slice_ms(start_ms, end_ms)
+        if len(candles) == 0:
+            raise DataError(f"no bars inside {start}..{end} for {pair} {period}s")
         self._log(f"{pair} {period}s -> {len(candles):,} bars {start}..{end}")
         return candles
 
@@ -326,7 +334,24 @@ class CoinWClient:
         path = self._cache_path(pair, period, label)
         if path.exists():
             payload = json.loads(path.read_text(encoding="utf-8"))
-            return payload["response"]["data"]
+            meta = payload.get("_meta", {})
+            # The reverse of the superset case: a chunk cached from a request that
+            # began mid-year does NOT cover a later request for the whole year.
+            # Serving it would silently drop bars, so re-fetch instead.
+            covered_start = meta.get("start_ms")
+            covered_end = meta.get("end_ms")
+            if covered_start is None or covered_end is None:
+                return payload["response"]["data"]
+            if covered_start <= start_ms and covered_end >= end_ms:
+                return payload["response"]["data"]
+            self._log(
+                f"cache {path.name} covers {ms_to_date(covered_start)}..{ms_to_date(covered_end)} "
+                f"but {ms_to_date(start_ms)}..{ms_to_date(end_ms)} was requested; refetching"
+            )
+            if self.offline:
+                raise DataError(
+                    f"--offline: cached {path.name} does not cover the requested window"
+                )
 
         if self.offline:
             raise DataError(

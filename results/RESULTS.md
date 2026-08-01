@@ -19,9 +19,9 @@ GET https://api.coinw.com/api/v1/public
 
 | Series | Period | Bars | Span | Missing | Longest gap |
 |---|---|---:|---|---:|---:|
-| Indicator | 86400s | 3,133 | 2018-01-01 -> 2026-07-31 | 1 (0.032%) | 1 bars |
-| Execution | 900s | 265,451 | 2019-01-01 -> 2026-07-31 | 343 (0.129%) | 133 bars |
-| Cross-check | 3600s | 67,112 | 2018-12-01 -> 2026-07-31 | 81 (0.121%) | 34 bars |
+| Indicator | 86400s | 3,270 | 2017-08-17 -> 2026-07-31 | 1 (0.031%) | 1 bars |
+| Execution | 900s | 294,324 | 2018-03-05 -> 2026-07-31 | 462 (0.157%) | 133 bars |
+| Cross-check | 3600s | 78,351 | 2017-08-17 -> 2026-07-31 | 149 (0.190%) | 34 bars |
 
 Missing bars are **counted and reported, never interpolated**. A fabricated bar with a plausible low would generate a fill that never happened, which is the exact class of error that makes a grid backtest untrustworthy.
 
@@ -67,6 +67,7 @@ Every tested window is here, including every one where the strategy is beaten. R
 
 | Window | Strategy | Max DD | Buy & hold | B&H max DD | Exposure-matched B&H | Avg inventory | Round trips | Sharpe | Calmar |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| `bear-2018` | **-32.66%** | 36.75% | -67.87% | 72.93% | -28.99% | 42.7% | 22 | -1.47 | -1.03 |
 | `bear-2022` | **-33.36%** | 35.46% | -64.25% | 67.49% | -24.10% | 37.5% | 16 | -1.46 | -0.94 |
 | `range-2023` | **+12.32%** | 6.92% | +155.39% | 21.81% | +27.37% | 17.6% | 70 | 1.05 | 1.78 |
 | `bull-2020Q4` | **+10.82%** | 2.17% | +444.53% | 29.97% | +4.59% | 1.0% | 14 | 3.17 | 10.54 |
@@ -74,11 +75,11 @@ Every tested window is here, including every one where the strategy is beaten. R
 | `year-2025` | **-0.55%** | 17.91% | -6.45% | 35.81% | -1.98% | 30.8% | 68 | 0.06 | -0.03 |
 | `chop-2019H2` | **+11.55%** | 13.22% | -21.55% | 50.67% | -5.76% | 26.7% | 54 | 0.78 | 1.35 |
 | `ytd-2026` | **-11.22%** | 14.36% | -28.25% | 40.46% | -8.95% | 31.7% | 8 | -1.28 | -1.29 |
-| `full-2019-2026` | **+56.13%** | 41.86% | +1598.88% | 77.24% | +457.63% | 28.6% | 408 | 0.37 | 0.14 |
+| `full-2018-2026` | **+30.77%** | 41.85% | +446.07% | 77.24% | +137.73% | 30.9% | 430 | 0.25 | 0.08 |
 
-**Exposure-matched buy & hold is the fair comparison.** This strategy runs 26% average inventory across these windows (1% to 38%); measuring it against 100%-long BTC compares two different amounts of risk. Both are shown, always. Note the benchmark is only exposure-matched at t=0 -- it never trims, so its exposure drifts upward as BTC rises, which makes it harder to beat, not easier.
+**Exposure-matched buy & hold is the fair comparison.** This strategy runs 28% average inventory across these windows (1% to 43%); measuring it against 100%-long BTC compares two different amounts of risk. Both are shown, always. Note the benchmark is only exposure-matched at t=0 -- it never trims, so its exposure drifts upward as BTC rises, which makes it harder to beat, not easier.
 
-Across 8 windows the strategy beats outright buy-and-hold in **4** and exposure-matched buy-and-hold in **3**.
+Across 9 windows the strategy beats outright buy-and-hold in **5** and exposure-matched buy-and-hold in **3**.
 
 > **What this is.** A long-biased grid systematically sells strength and buys weakness. It *must* underperform in a sustained trend and *must* do relatively well in a chop or a decline. That is not a bug being explained away -- it is the strategy's identity, and any grid claiming otherwise is misrepresenting itself. **If you believe BTC is going up, hold BTC.** This is for the case where you want volatility exposure without a directional view and will trade away trend participation to get a materially smaller drawdown.
 
@@ -90,6 +91,7 @@ The paired-exit design makes a strong claim: *every completed round trip is net-
 
 | Window | Round trips | Losing round trips | Win rate | Cap breaches (own action) | Bars above cap (mark drift) | Peak inventory |
 |---|---:|---:|---:|---:|---:|---:|
+| `bear-2018` | 22 | **0** | 100.00% | **0** | 49.3% | 52.3% |
 | `bear-2022` | 16 | **0** | 100.00% | **0** | 30.9% | 51.8% |
 | `range-2023` | 70 | **0** | 100.00% | **0** | 13.6% | 60.8% |
 | `bull-2020Q4` | 14 | **0** | 100.00% | **0** | 0.0% | 41.3% |
@@ -97,7 +99,7 @@ The paired-exit design makes a strong claim: *every completed round trip is net-
 | `year-2025` | 68 | **0** | 100.00% | **0** | 34.4% | 61.1% |
 | `chop-2019H2` | 54 | **0** | 100.00% | **0** | 17.0% | 60.2% |
 | `ytd-2026` | 8 | **0** | 100.00% | **0** | 50.7% | 50.1% |
-| `full-2019-2026` | 408 | **0** | 100.00% | **0** | 25.6% | 62.7% |
+| `full-2018-2026` | 430 | **0** | 100.00% | **1** | 27.7% | 62.7% |
 
 Two different questions are counted separately, on purpose. **Cap breaches** asks *did our own action put inventory over the cap?* and must be 0 -- `tests/test_invariants.py` asserts it. **Bars above cap** asks *how many bars did mark-to-market drift leave us above the cap?*, which is not a control failure: a rising price raises the inventory ratio without us trading, and no cap can be enforced continuously without trading continuously. Reporting only the first would look airtight; only the second would look broken.
 
@@ -107,14 +109,14 @@ The 100% win rate is **an invariant of the exit design, not skill**, and it excl
 
 ## 5. The improvement chain, measured
 
-Each architectural change measured in isolation on the same data: the mean across the 7 sub-windows, and separately the full 2019-2026 run. A single good number proves nothing, and the sub-windows overlap heavily, so the full run is the tiebreaker.
+Each architectural change measured in isolation on the same data: the mean across the 8 sub-windows, and separately the full 2019-2026 run. A single good number proves nothing, and the sub-windows overlap heavily, so the full run is the tiebreaker.
 
 | Variant | Sub-window mean return | Sub-window mean DD | Full-run return | Full-run DD | Full-run round trips | Full-run losing round trips | Mean fee drag |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| A. floating exits (the broken design) | -2.75% | 15.84% | **-37.60%** | 54.75% | 505 | **154** | 5.6% |
-| B. + paired per-lot exits | -3.47% | 16.42% | **+39.91%** | 41.95% | 431 | **0** | 5.5% |
-| C. + regime gate, passive — **SHIPPED DEFAULT** | -2.32% | 17.11% | **+56.13%** | 41.86% | 408 | **0** | 5.0% |
-| D. + active de-risk (tested, REJECTED) | +1.40% | 11.40% | **+14.25%** | 42.05% | 403 | **0** | 5.0% |
+| A. floating exits (the broken design) | -6.62% | 18.43% | **-58.72%** | 67.74% | 552 | **184** | 5.6% |
+| B. + paired per-lot exits | -7.01% | 18.86% | **+18.47%** | 41.98% | 443 | **0** | 5.1% |
+| C. + regime gate, passive — **SHIPPED DEFAULT** | -6.11% | 19.56% | **+30.77%** | 41.85% | 430 | **0** | 4.8% |
+| D. + active de-risk (tested, REJECTED) | -1.51% | 12.96% | **-2.82%** | 42.06% | 416 | **0** | 5.0% |
 
 **Read the losing-round-trip column first, and read it for what it is.** Floating exits produce well over a hundred losing round trips; paired exits produce exactly zero, in every window, across every configuration tested. That is a *structural guarantee*, not a statistical result.
 
@@ -124,17 +126,48 @@ Each architectural change measured in isolation on the same data: the mean acros
 
 Every number below is computed at generation time, not transcribed.
 
-**1. Force-selling into a downtrend is a wealth transfer, not a risk control.** Selling inventory down to the 15% DOWNTREND cap when the regime turns down is the obvious design and it is what most grid write-ups describe. Over the full run it returns +14.25% against +56.13% for not doing it -- a cost of **41.9 percentage points**. Selling into weakness at taker prices and rebuying when the regime flips back is a pump running in the wrong direction. What *does* work is the passive half of the same gate, refusing to add new buys in a downtrend: +39.91% without it against +56.13% with it, worth **16.2 points**. **Stop adding; do not panic-sell; keep a properly calibrated circuit breaker.**
+**1. Force-selling into a downtrend is a wealth transfer, not a risk control.** Selling inventory down to the 15% DOWNTREND cap when the regime turns down is the obvious design and it is what most grid write-ups describe. Over the full run it returns -2.82% against +30.77% for not doing it -- a cost of **33.6 percentage points**. Selling into weakness at taker prices and rebuying when the regime flips back is a pump running in the wrong direction. What *does* work is the passive half of the same gate, refusing to add new buys in a downtrend: +18.47% without it against +30.77% with it, worth **12.3 points**. **Stop adding; do not panic-sell; keep a properly calibrated circuit breaker.**
 
-**2. A hardcoded drawdown kill switch was a large source of loss while wearing the label 'risk control'.** It was originally a flat 20%. But holding up to 50% of equity in an asset whose own worst drawdown in this dataset is 77% makes a >20% equity drawdown *structurally normal*, so the switch was not detecting an abnormal loss -- it fired on the strategy working as designed, at local bottoms, at taker prices. At a 20% threshold the kill path realised **-9,955 USDT** on a 10,000 USDT account and the full run returned **+15.33%**. Deriving the threshold as `clamp(cap_range x asset_max_dd, 0.15, 0.50)` = **35%** leaves -3,204 USDT realised on that path and **+56.13%** overall. A threshold with units of percent is not a risk control until you can say what it is a threshold *of*.
+**2. A hardcoded drawdown kill switch was a large source of loss while wearing the label 'risk control'.** It was originally a flat 20%. But holding up to 50% of equity in an asset whose own worst drawdown in this dataset is 77% makes a >20% equity drawdown *structurally normal*, so the switch was not detecting an abnormal loss -- it fired on the strategy working as designed, at local bottoms, at taker prices. At a 20% threshold the kill path realised **-10,533 USDT** on a 10,000 USDT account and the full run returned **-6.80%**. Deriving the threshold as `clamp(cap_range x asset_max_dd, 0.15, 0.50)` = **35%** leaves -4,685 USDT realised on that path and **+30.77%** overall. A threshold with units of percent is not a risk control until you can say what it is a threshold *of*.
 
-**3. 'Sell the worst lots first' is backwards.** Dumping highest-cost-basis lots removes the positions furthest from their exits, which is the intuitive choice and the one we implemented first. Lowest-cost-first realises a smaller loss and leaves the deep lots to recover: **+14.25%** against **-2.86%** on the full run with forced de-risking enabled. The shipped default does not force-sell, so this governs only the drawdown-kill liquidation path -- which now honours the same setting rather than hardcoding the rejected ordering, as it did until an audit caught it.
+**3. 'Sell the worst lots first' is backwards.** Dumping highest-cost-basis lots removes the positions furthest from their exits, which is the intuitive choice and the one we implemented first. Lowest-cost-first realises a smaller loss and leaves the deep lots to recover: **-2.82%** against **-26.15%** on the full run with forced de-risking enabled. The shipped default does not force-sell, so this governs only the drawdown-kill liquidation path -- which now honours the same setting rather than hardcoding the rejected ordering, as it did until an audit caught it.
 
 **Also tested and rejected:** persistence-gating the de-risk (3 and 5 consecutive DOWNTREND days) and spreading it across days at 50% of the excess. Neither helped. An earlier `K = 0.50` default made fee drag ~10% and made the regime gate look worthless; that was the drag drowning the signal, not the gate being useless. **The value of a risk overlay is conditional on the underlying edge surviving costs.** Every one of these is reproducible by flipping the corresponding flag in `grid/strategy.py`.
 
 ---
 
 ## 6. Per-window detail
+
+### `bear-2018` -- The 2018 bear: BTC -72% for the year
+
+`2018-03-05T00:00:00Z` -> `2018-12-31T23:45:00Z` (302 days)
+
+| Metric | Strategy | Buy & hold | Exposure-matched B&H |
+|---|---:|---:|---:|
+| Total return | **-32.66%** | -67.87% | -28.99% |
+| CAGR | -38.02% | - | - |
+| Max drawdown | 36.75% | 72.93% | 31.42% |
+| Max DD duration | 240 d | - | - |
+| Sharpe (rf=0) | -1.47 | -1.60 | - |
+| Sortino | -1.84 | - | - |
+| Calmar | -1.03 | - | - |
+
+| Mechanism | Value |
+|---|---:|
+| Round trips (paired exits) | 22 |
+| Losing round trips | 0 |
+| Avg round-trip PnL | +13.42 USDT (5.781% of notional) |
+| Avg holding period | 1499 h |
+| De-risk / kill sales | 9 (realized -2001.03 USDT) |
+| Gross spread capture | +304.41 USDT |
+| Fees paid | 17.09 USDT (maker 11.55 / taker 5.53) |
+| Fee drag on gross capture | 3.0% |
+| Maker / taker fills | 37 / 28 |
+| Time in market | 99.1% |
+| Avg / peak inventory | 42.7% / 52.3% |
+| Daily-loss halt days | 12 |
+| Drawdown kill fired | yes, 1x |
+| Regime occupancy | RANGE 49.4%, UPTREND 4.0%, DOWNTREND 46.6% |
 
 ### `bear-2022` -- Sustained bear market, BTC -64%
 
@@ -353,33 +386,33 @@ Every number below is computed at generation time, not transcribed.
 | Drawdown kill fired | no |
 | Regime occupancy | RANGE 41.4%, DOWNTREND 58.6% |
 
-### `full-2019-2026` -- Everything: 7.6 years, no cherry-picking
+### `full-2018-2026` -- Everything CoinW has, 8.4 years, no cherry-picking
 
-`2019-01-01T00:00:00Z` -> `2026-07-31T16:15:00Z` (2769 days)
+`2018-03-05T00:00:00Z` -> `2026-07-31T16:15:00Z` (3071 days)
 
 | Metric | Strategy | Buy & hold | Exposure-matched B&H |
 |---|---:|---:|---:|
-| Total return | **+56.13%** | +1598.88% | +457.63% |
-| CAGR | +6.05% | - | - |
-| Max drawdown | 41.86% | 77.24% | 68.08% |
+| Total return | **+30.77%** | +446.07% | +137.73% |
+| CAGR | +3.24% | - | - |
+| Max drawdown | 41.85% | 77.24% | 56.15% |
 | Max DD duration | 991 d | - | - |
-| Sharpe (rf=0) | 0.37 | 0.91 | - |
-| Sortino | 0.39 | - | - |
-| Calmar | 0.14 | - | - |
+| Sharpe (rf=0) | 0.25 | 0.64 | - |
+| Sortino | 0.28 | - | - |
+| Calmar | 0.08 | - | - |
 
 | Mechanism | Value |
 |---|---:|
-| Round trips (paired exits) | 408 |
+| Round trips (paired exits) | 430 |
 | Losing round trips | 0 |
-| Avg round-trip PnL | +35.30 USDT (4.117% of notional) |
-| Avg holding period | 704 h |
-| De-risk / kill sales | 10 (realized -3203.76 USDT) |
-| Gross spread capture | +15124.77 USDT |
-| Fees paid | 740.70 USDT (maker 635.57 / taker 105.13) |
-| Fee drag on gross capture | 4.8% |
-| Maker / taker fills | 654 / 194 |
-| Time in market | 75.5% |
-| Avg / peak inventory | 28.6% / 62.7% |
-| Daily-loss halt days | 35 |
-| Drawdown kill fired | yes, 1x |
-| Regime occupancy | RANGE 55.6%, UPTREND 30.2%, DOWNTREND 14.1% |
+| Avg round-trip PnL | +28.93 USDT (4.228% of notional) |
+| Avg holding period | 833 h |
+| De-risk / kill sales | 19 (realized -4685.25 USDT) |
+| Gross spread capture | +13052.42 USDT |
+| Fees paid | 635.72 USDT (maker 542.84 / taker 92.89) |
+| Fee drag on gross capture | 4.7% |
+| Maker / taker fills | 690 / 220 |
+| Time in market | 82.0% |
+| Avg / peak inventory | 30.9% / 62.7% |
+| Daily-loss halt days | 47 |
+| Drawdown kill fired | yes, 2x |
+| Regime occupancy | RANGE 54.9%, UPTREND 27.8%, DOWNTREND 17.3% |
