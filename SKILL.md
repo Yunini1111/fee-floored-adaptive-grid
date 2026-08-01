@@ -288,6 +288,7 @@ choppy and declining markets.
 - Backtest and simulation results — `results/RESULTS.md`, reproducible with one command
 - Parameter sensitivity and risk boundaries — `results/sensitivity.md`
 - Trade-by-trade case review — `results/CASE-REVIEW.md`, generated from the trade log
+- When a grid is and is not the right instrument — `results/WHEN-TO-GRID.md`
 - Full trade log — `results/trades.csv`
 
 ## 11. Public GitHub Link

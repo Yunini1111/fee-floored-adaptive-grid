@@ -64,6 +64,10 @@ Parameter sweeps and risk boundaries: [`results/sensitivity.md`](results/sensiti
 **Trade-by-trade case review:** [`results/CASE-REVIEW.md`](results/CASE-REVIEW.md) — the June 2022
 kill-switch event lot by lot, proof that the regime gate filled **zero** buys in a downtrend across
 the whole run, an ordinary winning cycle end to end, and where the model charges itself.
+**Should you even run a grid?** [`results/WHEN-TO-GRID.md`](results/WHEN-TO-GRID.md) — grid vs
+simply holding across every regime, in **both USDT and BTC terms**; whether adding grid levels
+helps (it does not — at 100 levels the exchange takes 58% of gross profit); and an explicit list
+of the variants we refused to fake.
 Every fill: [`results/trades.csv`](results/trades.csv).
 
 ## Three findings that reversed our own intuition
@@ -170,7 +174,7 @@ grid/
 tests/                    107 tests
 data/                     cached raw CoinW responses + SHA-256 manifest
 results/                  generated: RESULTS.md, sensitivity.md, CASE-REVIEW.md,
-                          trades.csv, 3 charts
+                          WHEN-TO-GRID.md, trades.csv, 3 charts
 ```
 
 ## Applying it to CWC or any new listing
@@ -325,6 +329,32 @@ python -m pytest tests/ -v
 
 107 個測試，涵蓋手續費代數、指標定義（對照手算基準）、每一條成交規則、無未來函數性質，以及結構性不變量。
 其中 18 個會使用真實 CoinW 資料，在你跑過一次 `run_backtest.py --all` 之前會 skip。
+
+## 網格到底該不該用？
+
+[`results/WHEN-TO-GRID.md`](results/WHEN-TO-GRID.md) 是一份決策教材，全部數據實測：
+
+**幣本位視角**（期末換回 BTC，跟一開始就全換 BTC 抱著比）——這才是幣本位網格用戶真正在問的問題：
+
+| 行情 | USDT 本位 | 幣本位結果 |
+|---|---|---|
+| 2022 熊市 | 網格 −33% vs 持有 −64% | **網格多拿 86% 的 BTC** |
+| 2019H2 震盪下跌 | 網格 +12% vs 持有 −22% | **網格多拿 42% 的 BTC** |
+| 2020Q4 大多頭 | 持有大勝 | 網格只剩持有的 20% |
+| 完整 2019–26 | 持有大勝 | 網格 0.248 BTC vs 持有 2.70 BTC |
+
+**熊市與震盪市網格真的能累積更多幣，多頭市場則完全相反。**
+
+**加格子有用嗎？沒有。** 在兩年窗口把格數從 6 加到 100：成交次數 117 → 620，但**手續費從吃掉毛利的
+6% 暴增到 58%**。而且我們把自己「每層每日只成交一次」的保守限制拿掉後，密網格反而更差——多出來的
+成交補不回它自己的手續費。這是成本結構的性質，不是回測模型的偏誤。
+
+**我們沒有測、也不會假造的：做空網格與合約網格。** 兩者都需要真實的資金費率歷史；BTC 永續的資金費率
+長期偏正（多頭付錢給空頭），所以沒有這份數據去模擬做空網格，錯誤方向是已知的。一個「有信心但是錯的」
+數字比沒有數字更糟。文件裡寫清楚了補上它需要什麼。
+
+**一句話結論：** 如果你認為會漲，買現貨抱著就好，網格不是更好的做多方式。網格是你**沒有**方向判斷、
+想被波動付錢時才用的工具。
 
 ## 風險聲明
 

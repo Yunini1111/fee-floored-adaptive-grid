@@ -263,6 +263,15 @@ class Config:
     # rather than the average exposure. 1.0 disables it.
     uptrend_exit_mult: float = 1.0
 
+    # F7 relaxation. Normally a level that fills is not re-armed until the next
+    # daily rollover, which is deliberately stricter than a real bot. That is
+    # safe for a coarse ladder but it structurally caps a DENSE one, so a study
+    # concluding "dense grids are bad" has to rule out that the conclusion is an
+    # artefact of its own fill rule. Setting this True re-arms a level on the
+    # next bar, which is closer to how a real grid bot behaves and is used to
+    # check that the density finding survives.
+    refill_intraday: bool = False
+
     # --- ablation switches (used to publish the improvement chain honestly) ---
     paired_exits: bool = True  # False = exits float with the grid (the broken design)
     regime_gate: bool = True  # False = one static inventory cap

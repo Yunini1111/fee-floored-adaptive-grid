@@ -197,7 +197,8 @@ def run_backtest(
     base_qty = 0.0
 
     resting_buys: list[tuple[float, float]] = []  # (price, notional) -- live next bar
-    pending_buys: list[tuple[float, float]] = []  # placed this bar, not yet live (F1)
+    pending_buys: list[tuple[float, float]] = []  # ladder placed at rollover, live next bar (F1)
+    rearm_buys: list[tuple[float, float]] = []  # intraday re-arms, ADDED next bar (F1)
     filled_levels_today: set[float] = set()
     missed_today: set[int] = set()  # lot ids whose exit excursion we missed today
 
@@ -548,13 +549,24 @@ def run_backtest(
                     )
                 )
                 next_lot_id += 1
-                filled_levels_today.add(price)
                 resting_buys.remove((price, notional))
+                if cfg.refill_intraday:
+                    # Re-arm from the next bar. F1 still holds: it cannot fill
+                    # again on the bar that just filled it. Kept in its own list
+                    # because `pending_buys` REPLACES the ladder at the daily
+                    # rollover, and re-arms must be added to it, not replace it.
+                    rearm_buys.append((price, notional))
+                else:
+                    filled_levels_today.add(price)
 
-        # F1: orders placed during this bar's rollover become live next bar.
+        # F1: orders placed during this bar become live on the next one. The
+        # rollover ladder REPLACES what was resting; intraday re-arms are added.
         if pending_buys:
             resting_buys = pending_buys
             pending_buys = []
+        if rearm_buys:
+            resting_buys.extend(rearm_buys)
+            rearm_buys = []
 
         # ------------------------------------------------------------------ #
         # Mark, then evaluate the risk overlay for the NEXT bar
