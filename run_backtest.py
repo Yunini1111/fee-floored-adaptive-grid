@@ -315,7 +315,7 @@ def chain_section(daily, execution, hourly, base: Config) -> str:
     lines = ["## 5. The improvement chain, measured", ""]
     lines.append(
         "Each architectural change measured in isolation on the same data: the mean across the "
-        f"{len(window_names)} sub-windows, and separately the full 2019-2026 run. A single good "
+        f"{len(window_names)} sub-windows, and separately the full 2018-2026 run. A single good "
         "number proves nothing, and the sub-windows overlap heavily, so the full run is the "
         "tiebreaker."
     )
@@ -665,7 +665,7 @@ def sensitivity(daily, execution, hourly, base: Config) -> str:
     lines.append("")
     lines.append(
         "**Read that table carefully, because it is the least flattering thing in this "
-        "repository.** Over 2019-2026 the response is monotone in *every* column -- return, Sharpe "
+        "repository.** Over 2018-2026 the response is monotone in *every* column -- return, Sharpe "
         "and Calmar all improve as the base fraction rises, and they are maximised at 100%, which "
         "is not a strategy at all. On this window, every unit of capital allocated to the grid "
         "rather than to simply holding BTC subtracted risk-adjusted value."
@@ -1204,7 +1204,7 @@ def when_to_grid(daily, execution, hourly, base: Config) -> str:
         "spent in that state. Martingale converts a drawdown into a *frozen* position, which is why "
         "its drawdown is consistently the worst of the three active strategies.",
         "",
-        "**DCA is the honest long-run competitor.** Over the full 2019-2026 run it beats this grid "
+        "**DCA is the honest long-run competitor.** Over the full 2018-2026 run it beats this grid "
         "comfortably, because deploying gradually into a rising market is a good idea and selling "
         "into that same rise is not. In the falling and choppy windows the ordering reverses.",
         "",

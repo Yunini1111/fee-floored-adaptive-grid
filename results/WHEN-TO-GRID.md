@@ -91,7 +91,7 @@ Martingale parameters are the conventional retail defaults, not tuned: base orde
 
 **The martingale rows are the ones to read carefully.** Its ladder is finite. Once all eight safety orders are spent the bot is simply fully exposed, waiting for price to return to average cost, and the note under each table reports exactly how much of the window it spent in that state. Martingale converts a drawdown into a *frozen* position, which is why its drawdown is consistently the worst of the three active strategies.
 
-**DCA is the honest long-run competitor.** Over the full 2019-2026 run it beats this grid comfortably, because deploying gradually into a rising market is a good idea and selling into that same rise is not. In the falling and choppy windows the ordering reverses.
+**DCA is the honest long-run competitor.** Over the full 2018-2026 run it beats this grid comfortably, because deploying gradually into a rising market is a good idea and selling into that same rise is not. In the falling and choppy windows the ordering reverses.
 
 ---
 

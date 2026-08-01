@@ -242,7 +242,7 @@ class Config:
     # once at the first bar and never sold by the grid.
     #
     # Why this exists: a long-biased grid only buys BELOW its anchor and sells
-    # above, so it structurally does not participate in a trend. Over 2019-2026
+    # above, so it structurally does not participate in a trend. Over 2018-2026
     # that is the single largest reason it trails BTC. A base position is the
     # standard fix and is what most real grid products offer -- the base captures
     # trend, the grid harvests oscillation around it.
@@ -311,7 +311,7 @@ class Config:
         at the worst possible moment, liquidating into weakness at taker prices.
 
         This is not hypothetical. The first version of this strategy used a
-        hardcoded 20%. Over 2019-2026 that kill switch fired repeatedly, realised
+        hardcoded 20%. Over 2018-2026 that kill switch fired repeatedly, realised
         a five-figure loss on a 10,000 USDT account, and cost tens of percentage
         points against a threshold derived from the cap it exists to protect. It
         was a large source of loss in the study, and it was wearing the label

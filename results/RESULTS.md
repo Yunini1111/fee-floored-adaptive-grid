@@ -109,7 +109,7 @@ The 100% win rate is **an invariant of the exit design, not skill**, and it excl
 
 ## 5. The improvement chain, measured
 
-Each architectural change measured in isolation on the same data: the mean across the 8 sub-windows, and separately the full 2019-2026 run. A single good number proves nothing, and the sub-windows overlap heavily, so the full run is the tiebreaker.
+Each architectural change measured in isolation on the same data: the mean across the 8 sub-windows, and separately the full 2018-2026 run. A single good number proves nothing, and the sub-windows overlap heavily, so the full run is the tiebreaker.
 
 | Variant | Sub-window mean return | Sub-window mean DD | Full-run return | Full-run DD | Full-run round trips | Full-run losing round trips | Mean fee drag |
 |---|---:|---:|---:|---:|---:|---:|---:|

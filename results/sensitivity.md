@@ -70,7 +70,7 @@ A long-biased grid only buys below its anchor and sells above it, so it does not
 | 75% | +342.34% | 74.65% | 0.60 | 0.26 | 421 |
 | 100% *(= pure buy & hold)* | +446.03% | 77.23% | 0.64 | 0.29 | 0 |
 
-**Read that table carefully, because it is the least flattering thing in this repository.** Over 2019-2026 the response is monotone in *every* column -- return, Sharpe and Calmar all improve as the base fraction rises, and they are maximised at 100%, which is not a strategy at all. On this window, every unit of capital allocated to the grid rather than to simply holding BTC subtracted risk-adjusted value.
+**Read that table carefully, because it is the least flattering thing in this repository.** Over 2018-2026 the response is monotone in *every* column -- return, Sharpe and Calmar all improve as the base fraction rises, and they are maximised at 100%, which is not a strategy at all. On this window, every unit of capital allocated to the grid rather than to simply holding BTC subtracted risk-adjusted value.
 
 But that verdict is a property of the window, not of the grid. Per regime:
 
