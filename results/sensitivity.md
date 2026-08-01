@@ -8,13 +8,13 @@ Every row is the mean across the six sub-windows (bear-2022, range-2023, bull-20
 
 | K | Mean return | Mean max DD | Median round trips | Fee drag | Mean fees (USDT) |
 |---:|---:|---:|---:|---:|---:|
-| 0.25 | -6.64% | 19.53% | 131 | 20.0% | 218 |
-| 0.35 | -4.51% | 18.90% | 110 | 14.2% | 181 |
-| 0.50 | -3.08% | 18.47% | 95 | 10.0% | 141 |
-| 0.75 | -1.12% | 16.74% | 73 | 6.5% | 97 |
-| 1.00 **(default)** | -0.84% | 17.56% | 61 | 5.0% | 84 |
-| 1.50 | +2.02% | 15.98% | 43 | 3.6% | 63 |
-| 2.00 | +1.99% | 14.36% | 32 | 2.9% | 46 |
+| 0.25 | -7.85% | 19.33% | 118 | 20.5% | 189 |
+| 0.35 | -5.98% | 18.73% | 101 | 14.2% | 156 |
+| 0.50 | -4.69% | 18.31% | 91 | 10.2% | 122 |
+| 0.75 | -2.92% | 16.74% | 65 | 6.5% | 85 |
+| 1.00 **(default)** | -2.32% | 17.11% | 54 | 5.0% | 74 |
+| 1.50 | +0.29% | 15.59% | 42 | 3.5% | 55 |
+| 2.00 | +0.73% | 13.58% | 32 | 2.9% | 40 |
 
 ### Per-window decomposition, and how monotone this actually is
 
@@ -26,20 +26,21 @@ Every row is the mean across the six sub-windows (bear-2022, range-2023, bull-20
 | `flat-2024-26` | -18.49% | -15.40% | -12.53% | -5.47% | -5.81% | -1.16% | -3.61% | **no** |
 | `year-2025` | -8.94% | -7.18% | -5.12% | -1.36% | -0.55% | +4.66% | +6.63% | yes |
 | `chop-2019H2` | +2.81% | +5.46% | +8.08% | +10.78% | +11.55% | +15.07% | +17.27% | yes |
-| **mean** | -6.64% | -4.51% | -3.08% | -1.12% | -0.84% | +2.02% | +1.99% | **no** |
+| `ytd-2026` | -15.11% | -14.77% | -14.39% | -13.72% | -11.22% | -10.10% | -6.81% | yes |
+| **mean** | -7.85% | -5.98% | -4.69% | -2.92% | -2.32% | +0.29% | +0.73% | yes |
 
-**2 of 6 windows are individually monotone in K**, and the mean is not monotone across the full sweep either. The honest statement is therefore weaker than 'monotone everywhere': widening K improves the *average* result, but individual windows disagree, and `bull-2020Q4` is actively better at a tighter setting than the one we ship.
+**3 of 7 windows are individually monotone in K**, and the mean is monotone. The honest statement is therefore weaker than 'monotone everywhere': widening K improves the *average* result, but individual windows disagree, and `bull-2020Q4` is actively better at a tighter setting than the one we ship.
 
-What does hold universally is the **cost mechanism**: fee drag falls monotonically with K in **6 of 6** windows. That is the part of the argument the default rests on -- a tighter grid fills more often and hands the difference to the exchange -- and it is why the default moved to K = 1.00 despite the return ordering being messier than we first claimed.
+What does hold universally is the **cost mechanism**: fee drag falls monotonically with K in **6 of 7** windows. That is the part of the argument the default rests on -- a tighter grid fills more often and hands the difference to the exchange -- and it is why the default moved to K = 1.00 despite the return ordering being messier than we first claimed.
 
 ## 2. `cap_range` -- the dominant risk lever
 
 | Inventory cap | Mean return | Mean max DD | Median round trips |
 |---:|---:|---:|---:|
-| 0.20 | -0.19% | 8.30% | 53 |
-| 0.30 | -0.39% | 11.48% | 56 |
-| 0.50 **(default)** | -0.84% | 17.56% | 61 |
-| 0.70 | -1.35% | 19.61% | 64 |
+| 0.20 | -0.81% | 7.95% | 53 |
+| 0.30 | -1.30% | 11.08% | 54 |
+| 0.50 **(default)** | -2.32% | 17.11% | 54 |
+| 0.70 | -3.08% | 19.26% | 55 |
 
 Drawdown is close to linear in the inventory cap. This is the cleanest evidence in the study that **the dominant risk lever is inventory, not signal** -- and it is the dial to turn if the shipped risk profile is not yours. 0.30 is a reasonable conservative setting; 0.20 more so. The default stays at 0.50 because this is a risk-appetite preference, not a performance parameter, and tuning it to a backtest would be exactly the wrong lesson.
 
@@ -49,10 +50,10 @@ The inventory cap is the dial. Note that `dd_kill` is *derived* from it (`clamp(
 
 | Preset | `cap_range` | Derived `dd_kill` | Full-run return | Full-run DD | Sub-window mean DD |
 |---|---:|---:|---:|---:|---:|
-| Default (moderate) | 0.50 | 35% | +56.13% | 41.86% | 17.56% |
-| Conservative | 0.30 | 21% | +37.74% | 26.14% | 11.48% |
-| Defensive | 0.20 | 15% | +20.76% | 22.38% | 8.30% |
-| Conservative + active de-risk | 0.30 | 21% | +16.63% | 32.07% | 9.01% |
+| Default (moderate) | 0.50 | 35% | +56.13% | 41.86% | 17.11% |
+| Conservative | 0.30 | 21% | +37.74% | 26.14% | 11.08% |
+| Defensive | 0.20 | 15% | +20.76% | 22.38% | 7.95% |
+| Conservative + active de-risk | 0.30 | 21% | +16.63% | 32.07% | 8.42% |
 
 The last row is the important one. Adding a force-selling mechanism on top of a lower cap is **worse on both axes** than simply lowering the cap: it gives up return *and* ends up with a larger full-run drawdown. If you want less risk, hold less inventory -- do not bolt on a mechanism that liquidates into weakness.
 
@@ -80,6 +81,7 @@ But that verdict is a property of the window, not of the grid. Per regime:
 | `flat-2024-26` | -5.81% | -5.04% | -4.25% | -3.51% | -2.71% | **100%** |
 | `year-2025` | -0.55% | -1.98% | -3.51% | -4.98% | -6.44% | **0%** |
 | `chop-2019H2` | +11.55% | +3.28% | -4.99% | -13.24% | -21.55% | **0%** |
+| `ytd-2026` | -11.22% | -15.46% | -19.72% | -23.95% | -28.23% | **0%** |
 
 Every row is monotone in one direction or the other, and which direction is decided entirely by whether the asset rose or fell. **`base_fraction` is not a tuning parameter; it is a directional view.** Setting it high is a bet that the market goes up, in which case you should ask why you are running a grid at all. Setting it to zero is a bet that it chops or falls. The blend is exactly linear -- there is no interaction term, no synergy, and no free lunch hiding in the middle.
 
@@ -91,11 +93,11 @@ The one genuinely different way to make the grid more trend-aware, as opposed to
 
 | `uptrend_exit_mult` | Full-run return | Full-run max DD | Sub-window mean return | Sub-window mean DD |
 |---:|---:|---:|---:|---:|
-| 1.0x **(default)** | +56.13% | 41.86% | -0.84% | 17.56% |
-| 1.5x | +51.17% | 42.66% | -0.84% | 19.36% |
-| 2.0x | +63.12% | 42.66% | +0.73% | 19.35% |
-| 3.0x | +33.36% | 42.65% | +0.11% | 21.15% |
-| 5.0x | +66.42% | 41.90% | +1.95% | 23.31% |
+| 1.0x **(default)** | +56.13% | 41.86% | -2.32% | 17.11% |
+| 1.5x | +51.17% | 42.66% | -2.32% | 18.64% |
+| 2.0x | +63.12% | 42.66% | -0.98% | 18.64% |
+| 3.0x | +33.36% | 42.65% | -1.51% | 20.18% |
+| 5.0x | +66.42% | 41.90% | +0.07% | 22.03% |
 
 **Rejected.** The full-run return is non-monotone and jumps around by tens of points between adjacent settings -- that is noise, not a mechanism. Meanwhile the drawdown column *is* monotone and gets steadily worse. It buys performance in trending windows and pays for it in chop, which is the same trade the base position offers, reached less reliably. Picking the best-looking multiplier here would be precisely the curve-fitting this report claims not to do, so the default stays at 1.0 and the table is published.
 
@@ -103,12 +105,12 @@ The one genuinely different way to make the grid more trend-aware, as opposed to
 
 | Fee per side | Mean return | Mean max DD | Fee drag | Break-even spacing | Derived `s_floor` |
 |---:|---:|---:|---:|---:|---:|
-| 0.020% | -0.22% | 17.54% | 1.0% | 0.0400% | 0.1900% |
-| 0.050% | -0.47% | 17.54% | 2.5% | 0.1001% | 0.2501% |
-| 0.070% | -0.59% | 17.55% | 3.5% | 0.1401% | 0.2902% |
-| 0.100% **(verified)** | -0.84% | 17.56% | 5.0% | 0.2002% | 0.3504% |
-| 0.150% | -1.22% | 17.58% | 7.5% | 0.3005% | 0.4507% |
-| 0.200% | -1.62% | 17.60% | 10.0% | 0.4008% | 0.5511% |
+| 0.020% | -1.78% | 17.07% | 1.0% | 0.0400% | 0.1900% |
+| 0.050% | -2.00% | 17.08% | 2.5% | 0.1001% | 0.2501% |
+| 0.070% | -2.11% | 17.09% | 3.5% | 0.1401% | 0.2902% |
+| 0.100% **(verified)** | -2.32% | 17.11% | 5.0% | 0.2002% | 0.3504% |
+| 0.150% | -2.66% | 17.13% | 7.5% | 0.3005% | 0.4507% |
+| 0.200% | -3.01% | 17.15% | 10.0% | 0.4008% | 0.5511% |
 
 The published CoinW spot base rate is 0.10% per side. This sweep spans a 10x range around it, covering both the best VIP tier and double the base rate. **If a reviewer believes our fee assumption is wrong, their number is already in this table.** `s_floor` is derived from `fee` at runtime, never hardcoded, and assertion R8 refuses to place an order if the two ever disagree.
 
@@ -116,9 +118,9 @@ The published CoinW spot base rate is 0.10% per side. This sweep spans a 10x ran
 
 | Fill probability | Mean return | Mean max DD | Median round trips |
 |---:|---:|---:|---:|
-| 1.0 | -0.84% | 17.56% | 61 |
-| 0.7 | -2.92% | 16.79% | 49 |
-| 0.5 | -2.91% | 16.39% | 37 |
+| 1.0 | -2.32% | 17.11% | 54 |
+| 0.7 | -3.85% | 16.18% | 37 |
+| 0.5 | -3.78% | 15.72% | 31 |
 
 The fill model assumes that whenever price trades through a resting order, we are filled. On a thin book or with a large order that is generous. This sweep applies a deterministic seeded gate to each candidate fill. If the strategy only worked at 1.0, that would be a finding, and it would be reported here.
 
@@ -126,19 +128,19 @@ The fill model assumes that whenever price trades through a resting order, we ar
 
 | N | Mean return | Mean max DD | Median round trips |
 |---:|---:|---:|---:|
-| 3 | -1.62% | 18.77% | 54 |
-| 4 | -1.44% | 18.66% | 55 |
-| 6 **(default)** | -0.84% | 17.56% | 61 |
-| 8 | -0.81% | 16.93% | 64 |
-| 10 | -0.43% | 15.70% | 67 |
+| 3 | -3.31% | 18.46% | 51 |
+| 4 | -3.15% | 18.34% | 54 |
+| 6 **(default)** | -2.32% | 17.11% | 54 |
+| 8 | -2.16% | 16.46% | 53 |
+| 10 | -1.75% | 15.31% | 54 |
 
 ## 6. `K` x `cap_range` interaction
 
 | K \ cap | 0.20 | 0.30 | 0.50 | 0.70 |
 |---:|---:|---:|---:|---:|
-| **0.35** | -1.86%<br><sub>DD 9.0%</sub> | -2.56%<br><sub>DD 12.4%</sub> | -4.51%<br><sub>DD 18.9%</sub> | -5.14%<br><sub>DD 20.5%</sub> |
-| **0.50** | -1.13%<br><sub>DD 8.9%</sub> | -1.47%<br><sub>DD 12.1%</sub> | -3.08%<br><sub>DD 18.5%</sub> | -3.35%<br><sub>DD 20.3%</sub> |
-| **1.00** | -0.19%<br><sub>DD 8.3%</sub> | -0.39%<br><sub>DD 11.5%</sub> | -0.84%<br><sub>DD 17.6%</sub> | -1.35%<br><sub>DD 19.6%</sub> |
-| **1.50** | +0.05%<br><sub>DD 7.9%</sub> | +0.67%<br><sub>DD 11.0%</sub> | +2.02%<br><sub>DD 16.0%</sub> | +1.56%<br><sub>DD 18.5%</sub> |
+| **0.35** | -2.45%<br><sub>DD 8.8%</sub> | -3.48%<br><sub>DD 12.2%</sub> | -5.98%<br><sub>DD 18.7%</sub> | -6.92%<br><sub>DD 20.6%</sub> |
+| **0.50** | -1.80%<br><sub>DD 8.6%</sub> | -2.51%<br><sub>DD 11.9%</sub> | -4.69%<br><sub>DD 18.3%</sub> | -5.33%<br><sub>DD 20.3%</sub> |
+| **1.00** | -0.81%<br><sub>DD 7.9%</sub> | -1.30%<br><sub>DD 11.1%</sub> | -2.32%<br><sub>DD 17.1%</sub> | -3.08%<br><sub>DD 19.3%</sub> |
+| **1.50** | -0.54%<br><sub>DD 7.5%</sub> | -0.30%<br><sub>DD 10.5%</sub> | +0.29%<br><sub>DD 15.6%</sub> | -0.39%<br><sub>DD 18.1%</sub> |
 
 Mean return across all six windows, with mean max drawdown beneath.

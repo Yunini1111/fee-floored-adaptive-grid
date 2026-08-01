@@ -42,8 +42,9 @@ bought at a deep level into a lower grid, at a loss, while still reporting posit
 - **Execution timeframe:** 15m
 - **Signal timeframe:** 1D (native daily candles; no resampling and no volatility rescaling)
 - **Best suited for:** Range-bound, choppy, and declining markets. Measured on CoinW data, it beat
-  buy-and-hold in the 2022 bear (-33.4% against -64.3%) and in the choppy 2019H2-2020Q1 window
-  (+11.6% against -21.6%).
+  buy-and-hold in the 2022 bear (-33.4% against -64.3%), in the choppy 2019H2-2020Q1 window
+  (+11.6% against -21.6%), and year-to-date in 2026 (-11.2% against -28.3% while BTC sits
+  roughly 50% below its 2025 high).
 - **Less suited for:** Sustained trending markets. It **loses badly** to buy-and-hold in a bull run
   (2020Q4-2021Q1: +10.8% against +444.5%). Selling into strength is what a grid does; this is the
   price of the strategy, not a defect in it.

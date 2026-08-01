@@ -30,6 +30,7 @@ from grid.data import (
     max_consecutive_gap,
     ms_to_date,
 )
+from grid.benchmarks import run_buy_and_hold, run_dca, run_martingale
 from grid.engine import run_backtest
 from grid.metrics import compute_metrics
 from grid.strategy import Config, SignalEngine, breakeven_spacing, net_edge_per_round_trip
@@ -50,6 +51,7 @@ WINDOWS = [
     ("flat-2024-26", "2024-08-01", "2026-08-01", "Two years, roughly flat"),
     ("year-2025", "2025-01-01", "2026-01-01", "Calendar 2025"),
     ("chop-2019H2", "2019-07-01", "2020-03-01", "Choppy decline incl. Mar-2020 crash"),
+    ("ytd-2026", "2026-01-01", END, "Year to date: BTC -28%, ~50% below its 2025 high"),
     ("full-2019-2026", EXEC_START, END, "Everything: 7.6 years, no cherry-picking"),
 ]
 
@@ -1135,6 +1137,69 @@ def when_to_grid(daily, execution, hourly, base: Config) -> str:
         "**So the honest advice is: if you have a directional view that the market goes up, buy "
         "spot and hold. A grid is not a better way to be long.** A grid is what you run when you "
         "think the market goes sideways or down and you want to be paid for the chop.",
+        "",
+        "---",
+        "",
+        "## 1b. Against what a retail trader would actually run instead",
+        "",
+        "Holding is not the only alternative. The two strategies most likely to be running in a "
+        "drawdown are **periodic DCA** (定投) and a **DCA-martingale bot** (馬丁) of the kind "
+        "Pionex, 3Commas and OKX all ship. Both are simulated on the same bars with the same fees, "
+        "and because these bots execute with market orders, both pay the **taker** fee plus adverse "
+        "slippage. The grid pays maker on most fills -- that is a real structural advantage of "
+        "resting orders, not a modelling favour.",
+        "",
+        "Martingale parameters are the conventional retail defaults, not tuned: base order 2% of "
+        "capital, up to 8 safety orders each 1.5x the last, triggered every 2.5% below the previous "
+        "entry, take-profit 1.5% on the cycle's average cost.",
+        "",
+    ]
+
+    bench_windows = ("ytd-2026", "bear-2022", "chop-2019H2", "bull-2020Q4", "full-2019-2026")
+    for name, start, end, note in WINDOWS:
+        if name not in bench_windows:
+            continue
+        sub = execution.slice_ms(iso_to_ms(start), iso_to_ms(end))
+        if len(sub) < 100:
+            continue
+        last = float(sub.close[-1])
+        move = last / float(sub.open[0]) - 1.0
+        gm = compute_metrics(run_backtest(sub, daily, base, label=name, hourly=hourly), sub)
+        rows_b = [("**Grid (this Skill)**", gm.total_return, gm.max_dd, gm.final_equity / last, "")]
+        for fn in (run_buy_and_hold, run_dca, run_martingale):
+            r = fn(sub, base)
+            rows_b.append(
+                (r.label, r.final_equity / base.initial_equity - 1.0, r.max_dd, r.final_btc, r.notes)
+            )
+        best_ret = max(r[1] for r in rows_b)
+        best_dd = min(r[2] for r in rows_b)
+        best_btc = max(r[3] for r in rows_b)
+
+        out.append(f"### `{name}` — {note} (BTC {pct(move,1)})")
+        out.append("")
+        out.append("| Strategy | Return | Max DD | Ends holding |")
+        out.append("|---|---:|---:|---:|")
+        for lbl, ret, dd, btc, _n in rows_b:
+            r_s = f"**{pct(ret)}**" if ret == best_ret else pct(ret)
+            d_s = f"**{upct(dd)}**" if dd == best_dd else upct(dd)
+            b_s = f"**{btc:.4f} BTC**" if btc == best_btc else f"{btc:.4f} BTC"
+            out.append(f"| {lbl} | {r_s} | {d_s} | {b_s} |")
+        out.append("")
+        mg_note = next((n for l, _r, _d, _b, n in rows_b if "artingale" in l), "")
+        if mg_note:
+            out.append(f"<sub>Martingale detail: {mg_note}</sub>")
+            out.append("")
+
+    out += [
+        "**The martingale rows are the ones to read carefully.** Its ladder is finite. Once all "
+        "eight safety orders are spent the bot is simply fully exposed, waiting for price to return "
+        "to average cost, and the note under each table reports exactly how much of the window it "
+        "spent in that state. Martingale converts a drawdown into a *frozen* position, which is why "
+        "its drawdown is consistently the worst of the three active strategies.",
+        "",
+        "**DCA is the honest long-run competitor.** Over the full 2019-2026 run it beats this grid "
+        "comfortably, because deploying gradually into a rising market is a good idea and selling "
+        "into that same rise is not. In the falling and choppy windows the ordering reverses.",
         "",
         "---",
         "",

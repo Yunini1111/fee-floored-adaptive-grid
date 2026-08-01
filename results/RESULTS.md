@@ -73,11 +73,12 @@ Every tested window is here, including every one where the strategy is beaten. R
 | `flat-2024-26` | **-5.81%** | 29.70% | -2.71% | 53.86% | -0.88% | 32.3% | 117 | -0.07 | -0.10 |
 | `year-2025` | **-0.55%** | 17.91% | -6.45% | 35.81% | -1.98% | 30.8% | 68 | 0.06 | -0.03 |
 | `chop-2019H2` | **+11.55%** | 13.22% | -21.55% | 50.67% | -5.76% | 26.7% | 54 | 0.78 | 1.35 |
+| `ytd-2026` | **-11.22%** | 14.36% | -28.25% | 40.46% | -8.95% | 31.7% | 8 | -1.28 | -1.29 |
 | `full-2019-2026` | **+56.13%** | 41.86% | +1598.88% | 77.24% | +457.63% | 28.6% | 408 | 0.37 | 0.14 |
 
-**Exposure-matched buy & hold is the fair comparison.** This strategy runs 25% average inventory across these windows (1% to 38%); measuring it against 100%-long BTC compares two different amounts of risk. Both are shown, always. Note the benchmark is only exposure-matched at t=0 -- it never trims, so its exposure drifts upward as BTC rises, which makes it harder to beat, not easier.
+**Exposure-matched buy & hold is the fair comparison.** This strategy runs 26% average inventory across these windows (1% to 38%); measuring it against 100%-long BTC compares two different amounts of risk. Both are shown, always. Note the benchmark is only exposure-matched at t=0 -- it never trims, so its exposure drifts upward as BTC rises, which makes it harder to beat, not easier.
 
-Across 7 windows the strategy beats outright buy-and-hold in **3** and exposure-matched buy-and-hold in **3**.
+Across 8 windows the strategy beats outright buy-and-hold in **4** and exposure-matched buy-and-hold in **3**.
 
 > **What this is.** A long-biased grid systematically sells strength and buys weakness. It *must* underperform in a sustained trend and *must* do relatively well in a chop or a decline. That is not a bug being explained away -- it is the strategy's identity, and any grid claiming otherwise is misrepresenting itself. **If you believe BTC is going up, hold BTC.** This is for the case where you want volatility exposure without a directional view and will trade away trend participation to get a materially smaller drawdown.
 
@@ -95,6 +96,7 @@ The paired-exit design makes a strong claim: *every completed round trip is net-
 | `flat-2024-26` | 117 | **0** | 100.00% | **0** | 36.9% | 61.1% |
 | `year-2025` | 68 | **0** | 100.00% | **0** | 34.4% | 61.1% |
 | `chop-2019H2` | 54 | **0** | 100.00% | **0** | 17.0% | 60.2% |
+| `ytd-2026` | 8 | **0** | 100.00% | **0** | 50.7% | 50.1% |
 | `full-2019-2026` | 408 | **0** | 100.00% | **0** | 25.6% | 62.7% |
 
 Two different questions are counted separately, on purpose. **Cap breaches** asks *did our own action put inventory over the cap?* and must be 0 -- `tests/test_invariants.py` asserts it. **Bars above cap** asks *how many bars did mark-to-market drift leave us above the cap?*, which is not a control failure: a rising price raises the inventory ratio without us trading, and no cap can be enforced continuously without trading continuously. Reporting only the first would look airtight; only the second would look broken.
@@ -105,14 +107,14 @@ The 100% win rate is **an invariant of the exit design, not skill**, and it excl
 
 ## 5. The improvement chain, measured
 
-Each architectural change measured in isolation on the same data: the mean across the 6 sub-windows, and separately the full 2019-2026 run. A single good number proves nothing, and the sub-windows overlap heavily, so the full run is the tiebreaker.
+Each architectural change measured in isolation on the same data: the mean across the 7 sub-windows, and separately the full 2019-2026 run. A single good number proves nothing, and the sub-windows overlap heavily, so the full run is the tiebreaker.
 
 | Variant | Sub-window mean return | Sub-window mean DD | Full-run return | Full-run DD | Full-run round trips | Full-run losing round trips | Mean fee drag |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| A. floating exits (the broken design) | -0.67% | 15.16% | **-37.60%** | 54.75% | 505 | **154** | 5.6% |
-| B. + paired per-lot exits | -1.58% | 16.10% | **+39.91%** | 41.95% | 431 | **0** | 5.1% |
-| C. + regime gate, passive — **SHIPPED DEFAULT** | -0.84% | 17.56% | **+56.13%** | 41.86% | 408 | **0** | 5.0% |
-| D. + active de-risk (tested, REJECTED) | +2.08% | 12.63% | **+14.25%** | 42.05% | 403 | **0** | 4.9% |
+| A. floating exits (the broken design) | -2.75% | 15.84% | **-37.60%** | 54.75% | 505 | **154** | 5.6% |
+| B. + paired per-lot exits | -3.47% | 16.42% | **+39.91%** | 41.95% | 431 | **0** | 5.5% |
+| C. + regime gate, passive — **SHIPPED DEFAULT** | -2.32% | 17.11% | **+56.13%** | 41.86% | 408 | **0** | 5.0% |
+| D. + active de-risk (tested, REJECTED) | +1.40% | 11.40% | **+14.25%** | 42.05% | 403 | **0** | 5.0% |
 
 **Read the losing-round-trip column first, and read it for what it is.** Floating exits produce well over a hundred losing round trips; paired exits produce exactly zero, in every window, across every configuration tested. That is a *structural guarantee*, not a statistical result.
 
@@ -319,6 +321,37 @@ Every number below is computed at generation time, not transcribed.
 | Daily-loss halt days | 2 |
 | Drawdown kill fired | no |
 | Regime occupancy | RANGE 62.4%, UPTREND 24.9%, DOWNTREND 12.7% |
+
+### `ytd-2026` -- Year to date: BTC -28%, ~50% below its 2025 high
+
+`2026-01-01T00:00:00Z` -> `2026-07-31T16:15:00Z` (212 days)
+
+| Metric | Strategy | Buy & hold | Exposure-matched B&H |
+|---|---:|---:|---:|
+| Total return | **-11.22%** | -28.25% | -8.95% |
+| CAGR | -18.57% | - | - |
+| Max drawdown | 14.36% | 40.46% | 13.78% |
+| Max DD duration | 183 d | - | - |
+| Sharpe (rf=0) | -1.28 | -1.04 | - |
+| Sortino | -1.62 | - | - |
+| Calmar | -1.29 | - | - |
+
+| Mechanism | Value |
+|---|---:|
+| Round trips (paired exits) | 8 |
+| Losing round trips | 0 |
+| Avg round-trip PnL | +16.13 USDT (3.700% of notional) |
+| Avg holding period | 106 h |
+| De-risk / kill sales | 0 (realized +0.00 USDT) |
+| Gross spread capture | +135.98 USDT |
+| Fees paid | 12.28 USDT (maker 9.13 / taker 3.15) |
+| Fee drag on gross capture | 5.1% |
+| Maker / taker fills | 20 / 8 |
+| Time in market | 86.7% |
+| Avg / peak inventory | 31.7% / 50.1% |
+| Daily-loss halt days | 1 |
+| Drawdown kill fired | no |
+| Regime occupancy | RANGE 41.4%, DOWNTREND 58.6% |
 
 ### `full-2019-2026` -- Everything: 7.6 years, no cherry-picking
 

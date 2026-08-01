@@ -272,7 +272,7 @@ def test_readme_headline_table_matches_generated_results():
         return [round(float(c.rstrip("%").replace("+", "").replace("−", "-")), 2) for c in cells]
 
     for window in ("bear-2022", "range-2023", "bull-2020Q4", "flat-2024-26",
-                   "year-2025", "chop-2019H2", "full-2019-2026"):
+                   "year-2025", "chop-2019H2", "ytd-2026", "full-2019-2026"):
         gen_row = re.search(
             rf"\|\s*\**`{re.escape(window)}`\**\s*\|(.+)$", generated, flags=re.MULTILINE
         )
